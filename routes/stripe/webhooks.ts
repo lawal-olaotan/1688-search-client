@@ -1,5 +1,5 @@
-import prisma from "../../../../services/prisma";
-import { stripeInstance } from "../../../../utils/stripe";
+import { Request, Response } from "express";
+import { stripeInstance } from "../../utils/stripe";
 
 // The library needs to be configured with your account's secret key.
 // Ensure the key is kept out of any version control system you might be using.
@@ -10,9 +10,9 @@ const endpointSecret =
   process.env.STRIPE_WEBHOOK_SECRET ||
   "whsec_455d12cf897434b84e88dd22dd6d25bdd46c2352635cd92293139cf51303e044";
 
-export const handlePaymentWebhook = async (request, response) => {
+export const handlePaymentWebhook = async (request:Request, response: Response) => {
   try {
-    const sig = request.headers["stripe-signature"];
+    const sig = request.headers["stripe-signature"] as string;
 
     let event;
     try {
@@ -48,23 +48,11 @@ export const handlePaymentWebhook = async (request, response) => {
 
         // Check if the subscription is paused
         if (subscriptionUpdate.pause_collection) {
-          // Update user plan
-          await prisma.users.update({
-            where: { ID: +userId },
-            data: {
-              is_premium: false,
-            },
-          });
+          // TODO: Update user plan
           console.log("Subscription is paused");
         } else {
           if (userId)
-            // Update user plan
-            await prisma.users.update({
-              where: { ID: +userId },
-              data: {
-                is_premium: true,
-              },
-            });
+          // TODO: Update user plan
           console.log("Subscription is resumed");
         }
         break;
@@ -72,13 +60,7 @@ export const handlePaymentWebhook = async (request, response) => {
       case "customer.subscription.deleted":
         const cancelledSubscription = event.data.object;
         if (userId)
-          // Update user plan
-          await prisma.users.update({
-            where: { ID: +userId },
-            data: {
-              is_premium: false,
-            },
-          });
+          // TODO: Update user plan
         break;
       // ... handle other event types
       default:
