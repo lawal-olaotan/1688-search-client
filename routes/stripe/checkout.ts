@@ -1,21 +1,21 @@
 import Stripe from "stripe";
-import { request } from "express";
+import { Request, Response, request } from "express";
 import { stripeInstance } from "../../utils/stripe";
 
 const stripe = stripeInstance();
 
 // Function to check if a customer exists
-async function checkCustomerExists(email) {
+async function checkCustomerExists(email: string) {
   const customers = await stripe.customers.list({ email: email });
   return customers.data?.[0];
 }
 
-export async function checkoutHandler(req, res) {
+export async function checkoutHandler(req: Request, res: Response) {
   try {
     const { package: packageId, mode, referer } = req.body;
-    const session = req.query || req.user;
+    const session: any = req.query || (req as any).user;
 
-    const protocol = new URL(req.headers.origin).protocol;
+    const protocol = new URL(req.headers.origin as string).protocol;
     // Return to the referer
     const returnTo = referer || req.headers.referer || "/";
 
@@ -63,7 +63,7 @@ export async function checkoutHandler(req, res) {
       // },
     };
 
-    let checkoutSession;
+    let checkoutSession: any;
 
     if (customer) {
       if ("subscription" in customer.metadata) {
@@ -78,10 +78,10 @@ export async function checkoutHandler(req, res) {
         });
       }
 
-      if (checkoutSession.current_period_end) {
+      if ('ended_at' in checkoutSession || 'current_period_end' in checkoutSession) {
         const now = Date.now();
         const ends =
-          checkoutSession.ended_at || checkoutSession.current_period_end;
+          checkoutSession.ended_at || checkoutSession?.current_period_end;
 
         // check if subscription has expired
         if (now / 1000 >= ends) {

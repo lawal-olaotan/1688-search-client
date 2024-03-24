@@ -1,10 +1,12 @@
-export async function handleCanceledPayment(req, res) {
+import { Request, Response } from "express";
+
+export async function handleCanceledPayment(req: Request, res: Response) {
   try {
     const { session_id, next_url } = req.query;
 
     if (!session_id) return res.status(401).send("Forbidden request");
 
-    return res.redirect(next_url || "/");
+    return res.redirect(next_url as string || "/");
   } catch (error) {
     console.log(error);
     // return 500

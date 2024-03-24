@@ -5,7 +5,7 @@ const stripe = stripeInstance();
 
 export const handleGetSubscription = async (req: Request, res: Response) => {
   try {
-    const session = req.query || req?.["user"];
+    const session = req.query || (req as any)?.["user"];
 
     if (!session) throw new Error("Forbiden");
     // Get customer by user email
@@ -34,7 +34,7 @@ export const handleGetSubscription = async (req: Request, res: Response) => {
     } else {
       throw new Error("Subscription not found");
     }
-  } catch (error) {
+  } catch (error:any) {
     console.error(error);
     res.status(500).json({ error: error.message });
   }

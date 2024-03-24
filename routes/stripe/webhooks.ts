@@ -14,17 +14,17 @@ export const handlePaymentWebhook = async (request:Request, response: Response) 
   try {
     const sig = request.headers["stripe-signature"] as string;
 
-    let event;
+    let event:any;
     try {
       event = stripe.webhooks.constructEvent(request.body, sig, endpointSecret);
-    } catch (err) {
+    } catch (err:any) {
       console.error(err);
       response.status(400).send(`Webhook Error: ${err.message}`);
       return;
     }
 
-    let eventData = event.data.object;
-    let customer;
+    let eventData:any = event.data.object;
+    let customer:any;
     // Get customer information from the event object.
     if (eventData.customer)
       customer = await stripe.customers.retrieve(eventData.customer);

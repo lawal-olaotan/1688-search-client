@@ -30,7 +30,7 @@ export async function handleSuccessPayment(req: Request, res: Response) {
     // const { userId } = session.metadata;
 
     // A function to upgrade user's membership
-    const updateUserPlan = async (isPremium) => {
+    const updateUserPlan = async (isPremium:boolean) => {
       if (typeof isPremium !== "boolean") return;
       // TODO: Update user plan
 
