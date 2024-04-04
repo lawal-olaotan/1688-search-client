@@ -7,7 +7,7 @@ import { handleSuccessPayment } from "./success";
 import { handlePaymentWebhook } from "./webhooks";
 
 const router = express.Router();
-router.post("/checkout",/*  verifyToken, */ checkoutHandler);
+router.post("/checkout",checkoutHandler);
 router.get("/success", handleSuccessPayment);
 router.get("/cancelled", handleCanceledPayment);
 router.post("/webhook", express.raw({ type: 'application/json' }), handlePaymentWebhook);

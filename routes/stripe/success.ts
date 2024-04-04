@@ -4,6 +4,15 @@ import { stripeInstance } from "../../utils/stripe";
 
 const stripe = stripeInstance();
 
+
+
+ // A function to upgrade user's membership
+ const updateUserPlan = async (isPremium:boolean) => {
+  if (typeof isPremium !== "boolean") return;
+  // TODO: Update user plan
+
+};
+
 /**
  *
  * @param {import('express').Request} req - Express Request object
@@ -29,12 +38,7 @@ export async function handleSuccessPayment(req: Request, res: Response) {
 
     // const { userId } = session.metadata;
 
-    // A function to upgrade user's membership
-    const updateUserPlan = async (isPremium:boolean) => {
-      if (typeof isPremium !== "boolean") return;
-      // TODO: Update user plan
-
-    };
+   
 
     // Get expires_at
     const expires_at = new Date(session.expires_at * 1000);
@@ -74,32 +78,32 @@ export async function handleSuccessPayment(req: Request, res: Response) {
       throw new Error("Error processing the transaction.");
     }
 
-    if (req.signedCookies.auth_token) {
-      let auth_token = JSON.parse(req.signedCookies.auth_token ?? "null");
-      // auth_token.is_premium = true;
-      if (auth_token && "data" in auth_token) {
-        // Update user
-        auth_token = {
-          data: {
-            ...auth_token.data,
-            user: {
-              ...auth_token.data.user,
-              is_premium: true,
-            },
-          },
-        };
+    // if (req.signedCookies.auth_token) {
+    //   let auth_token = JSON.parse(req.signedCookies.auth_token ?? "null");
+    //   // auth_token.is_premium = true;
+    //   if (auth_token && "data" in auth_token) {
+    //     // Update user
+    //     auth_token = {
+    //       data: {
+    //         ...auth_token.data,
+    //         user: {
+    //           ...auth_token.data.user,
+    //           is_premium: true,
+    //         },
+    //       },
+    //     };
 
-        res.cookie("auth_token", JSON.stringify(auth_token), {
-          signed: true,
-          domain: auth_token?.data?.domain,
-          httpOnly: process.env.NODE_ENV === "production",
-          secure: process.env.NODE_ENV === "production",
-          sameSite: "lax",
-          path: "/",
-          maxAge: parseInt(auth_token?.data?.expires_at),
-        });
-      }
-    }
+    //     res.cookie("auth_token", JSON.stringify(auth_token), {
+    //       signed: true,
+    //       domain: auth_token?.data?.domain,
+    //       httpOnly: process.env.NODE_ENV === "production",
+    //       secure: process.env.NODE_ENV === "production",
+    //       sameSite: "lax",
+    //       path: "/",
+    //       maxAge: parseInt(auth_token?.data?.expires_at),
+    //     });
+    //   }
+    // }
 
     res.redirect(next_url as string ?? "/");
   } catch (error) {

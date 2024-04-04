@@ -1,4 +1,3 @@
-import Stripe from "stripe";
 import { Request, Response, request } from "express";
 import { stripeInstance } from "../../utils/stripe";
 
@@ -10,57 +9,68 @@ async function checkCustomerExists(email: string) {
   return customers.data?.[0];
 }
 
-export async function checkoutHandler(req: Request, res: Response) {
+export async function checkoutHandler(req:Request, res: Response) {
   try {
-    const { package: packageId, mode, referer } = req.body;
-    const session: any = req.query || (req as any).user;
+    const { priceId,referer, email, userId, trialDays} = req.body;
+    console.log(req.headers.origin)
 
-    const protocol = new URL(req.headers.origin as string).protocol;
-    // Return to the referer
-    const returnTo = referer || req.headers.referer || "/";
+    // No session to track
+    // const session: any = req.query || (req as any).user;
 
-    const pricingPackage = await stripe.products
-      .search({
-        query: `name:"${packageId ?? "premium"}"`,
-      })
-      .then((res) => res.data?.[0])
-      .catch((err) => {
-        console.error(err);
-        return null;
-      });
+    const protocol = new URL(req.headers.origin as string).protocol;// Return to the referer
+    const returnTo = referer || req.headers.referer || "/premium";
 
-    let customer = await checkCustomerExists(session.email);
+
+    // TODO: to be transffered someehere for future references
+    // const pricingPackage = await stripe.products
+    //   .search({
+    //     query: `name:"${packageId ?? "premium"}"`,
+    //   })
+    //   .then((res) => res.data?.[0])
+    //   .catch((err) => {
+    //     console.error(err);
+    //     return null;
+    //   });
+
+    let customer = await checkCustomerExists(email);
+    let success_url = `${protocol}//${req.headers.host}/stripe/success?session_id={CHECKOUT_SESSION_ID}&next_url=${encodeURIComponent(returnTo)}`;
+    let cancel_url= returnTo ||
+    `${protocol}//${req.headers.host
+    }/stripe/cancelled?session_id={CHECKOUT_SESSION_ID}&next_url=${encodeURIComponent(
+      returnTo
+    )}`
 
     // STRIPE PARAMS
     const params: any = {
-      mode: mode || "subscription",
+      mode: "subscription",
       line_items: [
         {
-          price: pricingPackage?.default_price || process.env.STRIPE_PRICE_ID,
+          price: priceId,
           quantity: 1,
         },
       ],
-      success_url: `${protocol}//${req.headers.host
-        }/stripe/success?session_id={CHECKOUT_SESSION_ID}&next_url=${encodeURIComponent(
-          returnTo
-        )}`,
-      cancel_url:
-        returnTo ||
-        `${protocol}//${req.headers.host
-        }/stripe/cancelled?session_id={CHECKOUT_SESSION_ID}&next_url=${encodeURIComponent(
-          returnTo
-        )}`,
-      client_reference_id: session.userId.toString(),
+      allow_promotion_codes: true,
+      success_url,
+      cancel_url,
+      client_reference_id: userId.toString(),
       billing_address_collection: "required",
-      currency: "USD",
       payment_method_types: ["card"],
       metadata: {
-        userId: session.userId,
+        userId: userId,
       },
-      // customer_creation: "if_required",
-      // automatic_tax: {
-      //   enabled: true,
-      // },
+      phone_number_collection:{
+        enabled:true
+      }, 
+      after_expiration:{
+        recovery:{
+          enabled:true,
+          allow_promotion_codes:true
+        }
+      },
+      subscription_data:{
+        trial_period_days: trialDays,
+      },
+      payment_method_collection: 'always',
     };
 
     let checkoutSession: any;
@@ -95,7 +105,7 @@ export async function checkoutHandler(req: Request, res: Response) {
       }
     } else {
       // Create new customer
-      params.customer_email = session.email;
+      params.customer_email = email;
     }
 
     if (!checkoutSession) {
@@ -103,7 +113,7 @@ export async function checkoutHandler(req: Request, res: Response) {
         ...params,
       });
     }
-    res.status(200).json({ session: checkoutSession });
+    res.status(200).json({ session: checkoutSession});
   } catch (error) {
     console.log("Error creating Checkout Session:", error);
     res.status(500).json({
