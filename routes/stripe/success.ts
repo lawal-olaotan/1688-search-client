@@ -20,6 +20,8 @@ const stripe = stripeInstance();
  */
 export async function handleSuccessPayment(req: Request, res: Response) {
   try {
+
+
     // Check the agent to make sure the request is from the browser
     if (req.headers["user-agent"] && !req.headers["user-agent"].includes("Mozilla")) {
       return res.status(401).send("Forbidden request");
@@ -35,8 +37,6 @@ export async function handleSuccessPayment(req: Request, res: Response) {
     const session: any = await stripe.checkout.sessions.retrieve(session_id as string);
 
     if (!session) return res.status(401).send("Forbidden request");
-
-    // const { userId } = session.metadata;
 
    
 
@@ -54,11 +54,11 @@ export async function handleSuccessPayment(req: Request, res: Response) {
     if (session.payment_status === "unpaid" && session.status !== "complete") {
       // Update user plan
       updateUserPlan(false);
-
       return res.redirect(req.headers.referer as string ?? next_url ?? "/");
     }
 
     if (session["payment_status"] === "paid" && session.status === "complete") {
+      
       // Upgrade user
       updateUserPlan(true);
 

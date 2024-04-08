@@ -12,7 +12,6 @@ async function checkCustomerExists(email: string) {
 export async function checkoutHandler(req:Request, res: Response) {
   try {
     const { priceId,referer, email, userId, trialDays} = req.body;
-    console.log(req.headers.origin)
 
     // No session to track
     // const session: any = req.query || (req as any).user;
@@ -60,7 +59,7 @@ export async function checkoutHandler(req:Request, res: Response) {
       },
       phone_number_collection:{
         enabled:true
-      }, 
+      },
       after_expiration:{
         recovery:{
           enabled:true,
@@ -71,6 +70,7 @@ export async function checkoutHandler(req:Request, res: Response) {
         trial_period_days: trialDays,
       },
       payment_method_collection: 'always',
+      expires_at: Math.floor(Date.now() / 1000) + (60*30),
     };
 
     let checkoutSession: any;
@@ -113,7 +113,10 @@ export async function checkoutHandler(req:Request, res: Response) {
         ...params,
       });
     }
+
     res.status(200).json({ session: checkoutSession});
+
+
   } catch (error) {
     console.log("Error creating Checkout Session:", error);
     res.status(500).json({
