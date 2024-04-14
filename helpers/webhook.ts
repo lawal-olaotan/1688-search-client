@@ -1,12 +1,14 @@
 import emailMarketingProvider  from "../utils/mailchimp"
 import { Request, Response } from "express";
 import { stripeInstance } from "../utils/stripe";
-import {User} from '../db/queries/user'
+import {user} from '../db/queries/user'
+import dotenv from "dotenv"
+
+dotenv.config();
 
 const stripe = stripeInstance();
 
 export const stripeEvent = async(request:Request, response:Response)=> {
-
 
     const sig = request.headers["stripe-signature"] as string;
     const payload = request.body;
@@ -19,54 +21,55 @@ export const stripeEvent = async(request:Request, response:Response)=> {
         return;
       }
       return event
-  }
-  
-  
-  export const triggerTargetEvent = async (event,response:Response)=> {
-    const db = new User()   
-    const emailProvider = emailMarketingProvider()
+}
+
+export const triggerTargetEvent = async (event:any)=> {
+
     const session = event.data.object;
-    console.log(event.type);
+    const { customer } = session
 
-    let customer:any;
-
+    let customers:any;
 
     // // Get customer information from the event object.
     if (session.customer){
-        customer = await stripe.customers.retrieve(session.customer);
+        customers = await customers.retrieve(customer);
     }
 
-    const { userId } = customer?.metadata ?? { userId: null };
+    await triggerTarget(session,customer,event)
+
+}
+  
+export const triggerTarget = async(customer:any,session:any,event:any)=>{
+
+  const db = user();
+  const emailProvider = emailMarketingProvider();
+  const {customer_details,after_expiration,consent} = session   
+  const {userId} = customer?.metadata ?? { userId: null};
 
     switch (event.type) {
       case "subscription_schedule.canceled":
-        console.log(event);
+        if (userId) await db.findAndUpdate(userId,{isPremium:false});
         break
       case "checkout.session.expired":
           // events triggers when user checkout session expires
-        if((!session.customer_details?.email 
-          || !session.after_expiration.recovery.url) && 
-          !(session.consent?.promotions === 'opt_in')) return response.status(200).send();
-          
-          const email = session.customer_details?.email 
-          const recoveryUrl = session.after_expiration.recovery.url
-          const listId = process.env.RECOVERY_LISTID as string
-
-          const   {name} = await db.queryUser({email});
-          await emailProvider.createContact(email,name,listId,recoveryUrl)
+        if((!customer_details?.email || !after_expiration.recovery.url) && 
+          !(consent?.promotions === 'opt_in')) return false;
+          const email_address = customer_details?.email 
+          const name =  customer_details.name
+          const ListId = process.env.RECOVERY_LISTID as string
+          await emailProvider.saveContact(ListId,{email_address,name})
         break;
       case "customer.subscription.deleted":
-        const cancelledSubscription = event.data.object;
-        console.log(cancelledSubscription);
-        // if (userId) await db.findAndUpdate(userId,'users',{isPremium:false})
+          // turn user object to false
+          if (userId) await db.findAndUpdate(userId,{isPremium:false})
         break;
       // ... handle other event types
       case "customer.discount.created":
         // Find used coupon associate with an influencer
-  
+        // update influncers count
       break
       default:
-        console.log(`Unhandled event type ${event.type}`);
+        return false
     }
-  }
-  
+
+}
