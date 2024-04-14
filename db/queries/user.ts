@@ -1,13 +1,12 @@
 import { dbPromise } from "../config";
 
 
+export const user = ()=> {
 
-
-export class User {
-   #client
-
-    async Constructor(){
-        this.#client =  ( await dbPromise).db()
+    const connection = async()=> {
+        const db = (await dbPromise).db()
+        const collection = db.collection('user')
+        return collection
     }
     
     /** method queries the data
@@ -15,21 +14,34 @@ export class User {
      * @returns userObject
      */
 
-    async #findUser(query){
-        return await this.#client.collection("users").findOne(query);
+    const findUser = async(query:{}) => {
+        const client = await connection()
+        return await client.findOne(query);
     }
 
-    async queryUser(query){
-        const userDetails = await this.#findUser(query);
+    const queryUser = async(query:{})=> {
+        const userDetails = await findUser(query);
         if(!userDetails) return null
         return userDetails
     }
 
-    async findAndUpdate(userId,collection,query){
-        await this.#client.collection(collection).updateOne(
+    const findAndUpdate = async(userId:string,query?:{}) => {
+        const client = await connection()
+        await client.updateOne(
             { userId}, 
             {$set:query})
-        }
+    }
+
+    const updateUserPlan = async (userId:string,premiumStatus:boolean) => {
+        if (typeof premiumStatus !== "boolean") return;
+        await findAndUpdate(userId,{isPremium:premiumStatus})
+      };
+
+    return {
+        queryUser,
+        findAndUpdate,
+        updateUserPlan
+    }
 
     
 }
