@@ -6,7 +6,7 @@ import webhook from "./routes/webhooks";
 import cors from 'cors'
 import morgan from 'morgan'
 import dotenv from "dotenv"
-import { dbPromise } from './db/config.ts';
+import { dbPromise } from './db/config';
 
 dotenv.config(); 
 
@@ -17,7 +17,6 @@ const app:Express = express();
 app.use(cors());
 app.use(morgan('dev'));
 app.use("/webhook", webhook);
-
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({limit:'200mb', extended:false}));
 

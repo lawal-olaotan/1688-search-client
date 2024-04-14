@@ -13,6 +13,7 @@ export async function checkoutHandler(req:Request, res: Response) {
   try {
     const { priceId,referer, email, userId, trialDays} = req.body;
 
+    // TODO save userId to session  so we can access it later in the webhook
     // No session to track
     // const session: any = req.query || (req as any).user;
 
@@ -32,6 +33,7 @@ export async function checkoutHandler(req:Request, res: Response) {
     //   });
 
     let customer = await checkCustomerExists(email);
+    
     let success_url = `${protocol}//${req.headers.host}/stripe/success?session_id={CHECKOUT_SESSION_ID}&next_url=${encodeURIComponent(returnTo)}`;
     let cancel_url= returnTo ||
     `${protocol}//${req.headers.host

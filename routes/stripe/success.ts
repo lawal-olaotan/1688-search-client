@@ -1,18 +1,19 @@
 // import prisma from "../../../../services/prisma";
 import { Request, Response } from "express";
 import { stripeInstance } from "../../utils/stripe";
+import { user } from "../../db/queries/user";
+import emailMarketingProvider  from "../../utils/mailchimp";
+import dotenv from "dotenv"
+
+dotenv.config();
 
 const stripe = stripeInstance();
+const db = user()
+const mailProvider = emailMarketingProvider()
 
 
 
  // A function to upgrade user's membership
- const updateUserPlan = async (isPremium:boolean) => {
-  if (typeof isPremium !== "boolean") return;
-  // TODO: Update user plan
-
-};
-
 /**
  *
  * @param {import('express').Request} req - Express Request object
@@ -21,8 +22,6 @@ const stripe = stripeInstance();
 export async function handleSuccessPayment(req: Request, res: Response) {
   try {
 
-
-    // Check the agent to make sure the request is from the browser
     if (req.headers["user-agent"] && !req.headers["user-agent"].includes("Mozilla")) {
       return res.status(401).send("Forbidden request");
     }
@@ -31,81 +30,38 @@ export async function handleSuccessPayment(req: Request, res: Response) {
 
     // Get today's date
     const now = new Date(Date.now());
-
     if (!session_id) return res.status(401).send("Forbidden request");
 
-    const session: any = await stripe.checkout.sessions.retrieve(session_id as string);
+    const session = await stripe.checkout.sessions.retrieve(session_id as string);
+    let {payment_status,expires_at,customer_details,metadata,cancel_url}: any = session
 
-    if (!session) return res.status(401).send("Forbidden request");
+      // TODO: it would be nice if code can still run
+      if(!("address" in customer_details)) return null
+      if (!session) return res.status(401).send("Forbidden request");
+     
+      if ( !(payment_status === "paid")) throw new Error("Error processing the transaction.");
 
-   
+    const {userId} = metadata
 
     // Get expires_at
-    const expires_at = new Date(session.expires_at * 1000);
+     expires_at = new Date(expires_at * 1000);
     // Check if the payment is expired
     if (expires_at <= now) {
       // Update user plan
-      updateUserPlan(false);
-
-      return res.redirect(session.cancel_url ?? next_url ?? "/");
+      await db.updateUserPlan(userId,false);
+      return res.redirect(cancel_url ?? next_url ?? "/");
     }
 
-    // if payment was not complete
-    if (session.payment_status === "unpaid" && session.status !== "complete") {
-      // Update user plan
-      updateUserPlan(false);
-      return res.redirect(req.headers.referer as string ?? next_url ?? "/");
-    }
-
-    if (session["payment_status"] === "paid" && session.status === "complete") {
+      const listId = process.env.PAYINGUSERS_LISTID as string 
+      const { name,email,phone} = customer_details
+      const {city,country} = customer_details.address;
+      await mailProvider.saveContact(listId,{name, email_address:email, city, country, phone})
       
       // Upgrade user
-      updateUserPlan(true);
+      await db.updateUserPlan(userId,true)
+      
+    res.redirect(next_url as string ?? "/Dashboard/premium");
 
-      // Update meta
-      stripe.customers
-        .update(session.customer.id ?? session.customer, {
-          metadata: {
-            userId: session.metadata.userId,
-            plan: session?.plan?.id,
-            subscription: session.subscription.id ?? session.subscription,
-          },
-        })
-        .catch((error) => {
-          console.error("Stripe Error", error);
-        });
-    } else {
-      throw new Error("Error processing the transaction.");
-    }
-
-    // if (req.signedCookies.auth_token) {
-    //   let auth_token = JSON.parse(req.signedCookies.auth_token ?? "null");
-    //   // auth_token.is_premium = true;
-    //   if (auth_token && "data" in auth_token) {
-    //     // Update user
-    //     auth_token = {
-    //       data: {
-    //         ...auth_token.data,
-    //         user: {
-    //           ...auth_token.data.user,
-    //           is_premium: true,
-    //         },
-    //       },
-    //     };
-
-    //     res.cookie("auth_token", JSON.stringify(auth_token), {
-    //       signed: true,
-    //       domain: auth_token?.data?.domain,
-    //       httpOnly: process.env.NODE_ENV === "production",
-    //       secure: process.env.NODE_ENV === "production",
-    //       sameSite: "lax",
-    //       path: "/",
-    //       maxAge: parseInt(auth_token?.data?.expires_at),
-    //     });
-    //   }
-    // }
-
-    res.redirect(next_url as string ?? "/");
   } catch (error) {
     console.log(error);
     // return 500
