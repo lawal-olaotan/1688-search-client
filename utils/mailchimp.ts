@@ -34,7 +34,7 @@ const emailMarketingProvider = ()=>  {
           merge_fields: { 
             FNAME,
           }}
-   await mailchimp.lists.addListMember(listId,contactObject).then((data)=> console.log(data));
+   await mailchimp.lists.addListMember(listId,contactObject)
     
   }
  
