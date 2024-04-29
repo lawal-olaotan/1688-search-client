@@ -32,10 +32,11 @@ export const triggerTargetEvent = async (event:any)=> {
 
     // // Get customer information from the event object.
     if (session.customer){
-        customers = await customers.retrieve(customer);
+        customers = await stripe.customers.retrieve(customer);
+        return await triggerTarget(customers,session,event.type)
     }
 
-    await triggerTarget(session,customer,event)
+   return false
 
 }
   
@@ -43,26 +44,27 @@ export const triggerTarget = async(customer:any,session:any,event:any)=>{
 
   const db = user();
   const emailProvider = emailMarketingProvider();
-  const {customer_details,after_expiration,consent} = session   
-  const {userId} = customer?.metadata ?? { userId: null};
+  const {customer_details,after_expiration,consent} = session
+  const email_address = customer_details?.email 
 
-    switch (event.type) {
-      case "subscription_schedule.canceled":
-        if (userId) await db.findAndUpdate(userId,{isPremium:false});
-        break
+    switch (event) {
       case "checkout.session.expired":
           // events triggers when user checkout session expires
         if((!customer_details?.email || !after_expiration.recovery.url) && 
           !(consent?.promotions === 'opt_in')) return false;
-          const email_address = customer_details?.email 
           const name =  customer_details.name
           const ListId = process.env.RECOVERY_LISTID as string
           await emailProvider.saveContact(ListId,{email_address,name})
         break;
       case "customer.subscription.deleted":
           // turn user object to false
-          if (userId) await db.findAndUpdate(userId,{isPremium:false})
+          await db.findAndUpdate(email_address,{isPremium:false})
         break;
+      case "invoice.paid":
+        // check for active 
+        const {period_end,period_start} = session
+        await db.findAndUpdate(email_address,{starts:period_start,ends:period_end,isPremium:true})
+        break
       // ... handle other event types
       case "customer.discount.created":
         // Find used coupon associate with an influencer
