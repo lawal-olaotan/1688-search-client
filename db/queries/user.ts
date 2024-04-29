@@ -5,7 +5,7 @@ export const user = ()=> {
 
     const connection = async()=> {
         const db = (await dbPromise).db()
-        const collection = db.collection('user')
+        const collection = db.collection('users')
         return collection
     }
     
@@ -25,16 +25,16 @@ export const user = ()=> {
         return userDetails
     }
 
-    const findAndUpdate = async(userId:string,query?:{}) => {
+    const findAndUpdate = async(email:string,query?:{}) => {
         const client = await connection()
-        await client.updateOne(
-            { userId}, 
+        await client.findOneAndUpdate(
+            { email}, 
             {$set:query})
     }
 
-    const updateUserPlan = async (userId:string,premiumStatus:boolean) => {
+    const updateUserPlan = async (email:string,premiumStatus:boolean) => {
         if (typeof premiumStatus !== "boolean") return;
-        await findAndUpdate(userId,{isPremium:premiumStatus})
+        await findAndUpdate(email,{isPremium:premiumStatus})
       };
 
     return {
