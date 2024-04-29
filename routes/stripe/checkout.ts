@@ -11,34 +11,17 @@ async function checkCustomerExists(email: string) {
 
 export async function checkoutHandler(req:Request, res: Response) {
   try {
-    const { priceId,referer, email, userId, trialDays} = req.body;
-
-    // TODO save userId to session  so we can access it later in the webhook
-    // No session to track
-    // const session: any = req.query || (req as any).user;
+    const { priceId,return_url,success_link, email, userId} = req.body;
 
     const protocol = new URL(req.headers.origin as string).protocol;// Return to the referer
-    const returnTo = referer || req.headers.referer || "/premium";
-
-
-    // TODO: to be transffered someehere for future references
-    // const pricingPackage = await stripe.products
-    //   .search({
-    //     query: `name:"${packageId ?? "premium"}"`,
-    //   })
-    //   .then((res) => res.data?.[0])
-    //   .catch((err) => {
-    //     console.error(err);
-    //     return null;
-    //   });
 
     let customer = await checkCustomerExists(email);
     
-    let success_url = `${protocol}//${req.headers.host}/stripe/success?session_id={CHECKOUT_SESSION_ID}&next_url=${encodeURIComponent(returnTo)}`;
-    let cancel_url= returnTo ||
+    let success_url = `${protocol}//${req.headers.host}/stripe/success?session_id={CHECKOUT_SESSION_ID}&next_url=${encodeURIComponent(success_link)}`;
+    let cancel_url= return_url ||
     `${protocol}//${req.headers.host
     }/stripe/cancelled?session_id={CHECKOUT_SESSION_ID}&next_url=${encodeURIComponent(
-      returnTo
+      return_url
     )}`
 
     // STRIPE PARAMS
@@ -67,9 +50,6 @@ export async function checkoutHandler(req:Request, res: Response) {
           enabled:true,
           allow_promotion_codes:true
         }
-      },
-      subscription_data:{
-        trial_period_days: trialDays,
       },
       payment_method_collection: 'always',
       expires_at: Math.floor(Date.now() / 1000) + (60*30),
