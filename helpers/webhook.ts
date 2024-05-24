@@ -1,5 +1,4 @@
 import emailMarketingProvider  from "../utils/mailchimp"
-import { Request, Response } from "express";
 import { stripeInstance } from "../utils/stripe";
 import {user} from '../db/queries/user'
 import dotenv from "dotenv"
@@ -7,43 +6,32 @@ import dotenv from "dotenv"
 dotenv.config();
 
 const stripe = stripeInstance();
+const emailProvider = emailMarketingProvider();
+const db = user();
 
-export const stripeEvent = async(request:Request, response:Response)=> {
+export const stripeEvent = async(sig:string,payload:any)=> {
 
-    const sig = request.headers["stripe-signature"] as string;
-    const payload = request.body;
-    let event:any
       try {
         const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET as string
-        event = stripe.webhooks.constructEvent(payload, sig, endpointSecret);
+        let event = stripe.webhooks.constructEvent(payload, sig, endpointSecret);
+        return event
       } catch (err:any) {
-        response.status(400).send(`Webhook Error: ${err.message}`);
-        return;
+        throw new Error(err.message)
       }
-      return event
+
 }
 
 export const triggerTargetEvent = async (event:any)=> {
 
     const session = event.data.object;
-    const { customer } = session
-
-    let customers:any;
-
-    // // Get customer information from the event object.
-    if (session.customer){
-        customers = await stripe.customers.retrieve(customer);
-        return await triggerTarget(customers,session,event.type)
-    }
-
-   return false
-
+    const type = event.type
+    let eventResponse  = await triggerTarget(session,type)
+    return eventResponse
 }
   
-export const triggerTarget = async(customer:any,session:any,event:any)=>{
+export const triggerTarget = async(session:any,event:any)=>{
+ 
 
-  const db = user();
-  const emailProvider = emailMarketingProvider();
   const {customer_details,after_expiration,consent} = session
   const email_address = customer_details?.email 
 
@@ -52,18 +40,21 @@ export const triggerTarget = async(customer:any,session:any,event:any)=>{
           // events triggers when user checkout session expires
         if((!customer_details?.email || !after_expiration.recovery.url) && 
           !(consent?.promotions === 'opt_in')) return false;
-          const name =  customer_details.name
-          const ListId = process.env.RECOVERY_LISTID as string
-          await emailProvider.saveContact(ListId,{email_address,name})
+          const {email,name} = await db.queryUser({email:customer_details?.email})
+          const listId = process.env.RECOVERY_LISTID as string
+          await emailProvider.saveContact(listId,{email_address:email,name})
+          return true;
         break;
       case "customer.subscription.deleted":
           // turn user object to false
           await db.findAndUpdate(email_address,{isPremium:false})
+          return true 
         break;
       case "invoice.paid":
         // check for active 
         const {period_end,period_start} = session
         await db.findAndUpdate(email_address,{starts:period_start,ends:period_end,isPremium:true})
+        return true 
         break
       // ... handle other event types
       case "customer.discount.created":
