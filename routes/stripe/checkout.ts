@@ -1,5 +1,8 @@
 import { Request, Response, request } from "express";
 import { stripeInstance } from "../../utils/stripe";
+import dotenv from "dotenv"
+
+dotenv.config();
 
 const stripe = stripeInstance();
 
@@ -11,7 +14,7 @@ async function checkCustomerExists(email: string) {
 
 export async function checkoutHandler(req:Request, res: Response) {
   try {
-    const { priceId,return_url,success_link, email, userId} = req.body;
+    const { priceId,return_url,success_link, email, userId,trialDays} = req.body;
 
     const protocol = new URL(req.headers.origin as string).protocol;// Return to the referer
 
@@ -23,6 +26,7 @@ export async function checkoutHandler(req:Request, res: Response) {
     }/stripe/cancelled?session_id={CHECKOUT_SESSION_ID}&next_url=${encodeURIComponent(
       return_url
     )}`
+
 
     // STRIPE PARAMS
     const params: any = {
@@ -51,12 +55,15 @@ export async function checkoutHandler(req:Request, res: Response) {
           allow_promotion_codes:true
         }
       },
+      subscription_data:{
+        trial_period_days: trialDays,
+      },
       payment_method_collection: 'always',
       expires_at: Math.floor(Date.now() / 1000) + (60*30),
     };
 
     let checkoutSession: any;
-
+    // TODO:Fix convulated if else statement 
     if (customer) {
       if ("subscription" in customer.metadata) {
         if (typeof customer.metadata["subscription"] === "string") {
@@ -97,8 +104,6 @@ export async function checkoutHandler(req:Request, res: Response) {
     }
 
     res.status(200).json({ session: checkoutSession});
-
-
   } catch (error) {
     console.log("Error creating Checkout Session:", error);
     res.status(500).json({

@@ -1,21 +1,16 @@
 import mailchimp  from '@mailchimp/mailchimp_marketing'
+import dotenv from "dotenv"
+
+dotenv.config();
 
 const emailMarketingProvider = ()=>  {
 
   interface customerType {
     email_address:string,
     name:string,
-    country?:string,
-    city?:string,
-    phone?:string
+  
   }
 
-  // const authenticate = ()=> {
-  //     mailchimp.setConfig({
-  //       apiKey:process.env.MAILCHIMP,
-  //       server:process.env.MAILCHIMP_REGION
-  //     }) 
-  // }
 
   const saveContact = async(listId:string,customerType:customerType)=> {
 
@@ -37,6 +32,7 @@ const emailMarketingProvider = ()=>  {
    await mailchimp.lists.addListMember(listId,contactObject)
     
   }
+
  
     return {
       saveContact

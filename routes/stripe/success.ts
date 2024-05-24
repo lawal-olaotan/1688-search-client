@@ -44,7 +44,7 @@ export async function handleSuccessPayment(req: Request, res: Response) {
       if ( !(payment_status === "paid")) res.redirect(cancel_url)
      
       const listId = process.env.PAYINGUSERS_LISTID as string 
-      await mailProvider.saveContact(listId,{name, email_address:email, city, country, phone})
+      await mailProvider.saveContact(listId,{name, email_address:email})
   
       // Upgrade user
       await db.findAndUpdate(email,{starts:period_start,ends:period_end,isPremium:true})
