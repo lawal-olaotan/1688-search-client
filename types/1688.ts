@@ -24,3 +24,13 @@ export type ImageUploadResponse = {
   traceId: string;
   v: string;
 };
+
+export interface supplierInfo {
+  uuid: string;
+  title: string;
+  image: string;
+  url: string;
+  price: string;
+  unitsSupplied : string;
+  suppliersYearsOfActiveMarketing: string;
+}
