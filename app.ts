@@ -1,11 +1,9 @@
-// Imports dependencies and set up http server
 import express, { Express } from 'express';
 import bodyParser from 'body-parser';
 import routerHandler from './routes';
 import cors from 'cors';
 import morgan from 'morgan';
 import dotenv from 'dotenv';
-import { dbPromise } from './db/config';
 
 dotenv.config();
 
@@ -20,6 +18,5 @@ app.use('/', routerHandler);
 
 // Sets server port and logs message on success
 app.listen(process.env.PORT || 3001, async () => {
-  await dbPromise;
-  console.log('Payment API is listening to:', process.env.PORT || 3001);
+  console.log('listening to:', process.env.PORT || 3001);
 });

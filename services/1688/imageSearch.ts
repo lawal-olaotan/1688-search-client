@@ -1,8 +1,10 @@
+import {translate} from '@vitalets/google-translate-api';
 import { launchBrowser } from '../clients/headlessBrowser';
 import { COOKIE_KEY, TARGET_URL, USER_AGENT } from '../../const/SupplierFinder/1688';
 import { ImageUploadResponse } from '../../types/1688';
 import { BrowserContext } from 'puppeteer';
 import { convertImageUrlToBase64 } from '../../helpers/imageConversionHelper';
+import { SupplierDetails } from '../../types/supplierDetails';
 
 export const imageSearchService = async (imageUrl: string) => {
   const browser = await launchBrowser();
@@ -10,7 +12,12 @@ export const imageSearchService = async (imageUrl: string) => {
 
   try {
     const imageId = await uploadImage(context, imageUrl);
-    return await getSupplierDataFromImageId(context, imageId);
+    if (!imageId) {
+      console.error('Image upload failed, no image ID returned');
+      return null;
+    }
+   return await getSupplierDataFromImageId(context, imageId);
+
   } catch (error) {
     console.error('Error performing image search:', error);
     throw new Error('Internal server error');
@@ -20,27 +27,29 @@ export const imageSearchService = async (imageUrl: string) => {
   }
 };
 
-const getSupplierDataFromImageId = async (browser: BrowserContext, imageId: string) => {
+const getSupplierDataFromImageId = async (
+  browser: BrowserContext,
+  imageId: string,
+): Promise<SupplierDetails[]> => {
   const page = await browser.newPage();
 
-  const url = `https://s.1688.com/wow/cbu/srch_rec/image_search/youyuan/index.html?tab=imageSearch&imageId=${imageId}&imageIdList=${imageId}&spm=a26352.b28411319/2508.imagesearch.upload&sortType=total_sales_volume&memberTags=215680;5179713&quantityBegin=10`;
+  const url = `https://air.1688.com/kapp/1688-search/pc-image-search/?tab=imageSearch&imageId=${imageId}&imageIdList=${imageId}&spm=1688global.home/2025.pic&sortType=total_sales_volume&memberTags=215680;5179713&quantityBegin=10`;
 
   try {
-    await page.goto(url, {
-      waitUntil: 'domcontentloaded',
-    });
+    await page.goto(url);
 
     await page.waitForSelector('[data-renderkey]', { timeout: 10000 });
     return await page.evaluate(() => {
       const extractProductPrice = (itemSelector: Element): number => {
-        const pricingWrapper = itemSelector.querySelector('div.priceItem--KqgIKB16');
-        const mainPrice = pricingWrapper?.querySelector('div.textMain--s_l2eHVJ')?.textContent;
-        const decimalPrice = pricingWrapper?.querySelector('div:nth-child(3)')?.textContent;
+        const pricingWrapper = itemSelector.querySelector('div[class^="priceItem--"]');
+        const mainPrice =
+          pricingWrapper?.querySelector('div[class^="textMain--"]')?.textContent ?? '';
+        const decimalPrice = pricingWrapper?.querySelector('div:nth-child(3)')?.textContent ?? '';
 
         return Number(`${mainPrice}${decimalPrice || ''}`);
       };
       const extractYearsActive = (itemSelector: Element) => {
-        const yearsActiveText = itemSelector.querySelector('div.tpYear--BPYmBM3z')?.textContent;
+        const yearsActiveText = itemSelector.querySelector('div[class^="tpYear--"]')?.textContent;
         if (!yearsActiveText) return null;
 
         return yearsActiveText.replace(/\D/g, '');
@@ -50,21 +59,27 @@ const getSupplierDataFromImageId = async (browser: BrowserContext, imageId: stri
         const parts = item.getAttribute('data-renderkey').split('_');
         const offerId = parts[parts.length - 1];
         const productUrl = `https://detail.1688.com/offer/${offerId}.html`;
-        const image = item.querySelector('img').getAttribute('src') || '';
+        const productImage = item.querySelector('img').getAttribute('src') || '';
+        const titleRow = item.querySelector('div[class^="offerTitleRow--"]');
         const productTitle =
-          item.querySelector('div.offerTitleRow--B50QDpVK > div.titleText--TB6mnS3m > div')
-            .textContent || '';
+          titleRow?.querySelector('div[class^="titleText--"] > div')?.textContent || '';
         const price = extractProductPrice(item);
-        const unitsSupplied = item.querySelector('div.descText--ZgjQ0TWW')?.textContent;
+        const supplierName = item.querySelector('div[class^="shopName--"]')?.textContent ?? '';
         const yearsActive = extractYearsActive(item);
         return {
-          uuid: crypto.randomUUID(),
+          universalId: crypto.randomUUID(),
           productTitle,
           productUrl,
-          image,
-          price,
-          unitsSupplied,
+          productImage,
+          productPriceRange: {
+            min: price,
+            max: price,
+          },
           yearsActive,
+          supplierName,
+          supplierMoq: 'More than 10 pieces',
+          supplierUrl: productUrl,
+          platform: '1688',
         };
       });
     });
@@ -87,7 +102,8 @@ const uploadImage = async (context: BrowserContext, imageUrl: string) => {
     const cookies = await context.cookies();
     const targetCookie = cookies.find((cookie) => cookie.name === COOKIE_KEY);
     if (!targetCookie) {
-      throw new Error(`Cookie with key "${COOKIE_KEY}" not found`);
+      console.error(`Cookie with key "${COOKIE_KEY}" not found`);
+      return null;
     }
     const { url, data } = await build1688ImageUploadRequestData(
       imageUrl,
@@ -173,3 +189,8 @@ const build1688ImageUploadRequestData = async (imageUrl: string, cookieValue: st
     console.error('Error in build1688ImageUploadRequestData:', error);
   }
 };
+
+const translateText = async(text:string)=> {
+  const translatedText =  await translate(text, { from: 'zh-CN', to: 'en' });
+  return translatedText.text;
+}

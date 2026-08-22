@@ -14,6 +14,7 @@ export const supplierController = async (req: Request<ImageSearchRequest>, res: 
 
     const searchResults = await imageSearchService(imageUrl);
 
+
     res.json({ results: searchResults });
   } catch (error) {
     console.error('Error performing image search:', error);
