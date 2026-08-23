@@ -13,6 +13,7 @@ export const launchBrowser = async () => {
     browser = await puppeteer.launch({ headless: true, args: MINIMAL_ARGS });
     return browser;
   } catch (error) {
+
     console.error('Error launching browser:', error);
     throw new Error('Failed to launch browser');
   }

@@ -18,6 +18,8 @@ export const imageSearchService = async (imageUrl: string, useEnglish = false) =
     const imageId = await uploadImage(context, imageUrl);
     if (!imageId) {
       console.error('Image upload failed, no image ID returned');
+      await browser.close();
+      await context.close();
       return null;
     }
     const untranslatedResults = await getSupplierDataFromImageId(context, imageId);
