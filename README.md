@@ -137,22 +137,6 @@ ldd $(find / -name "chrome" 2>/dev/null | head -1) | grep "not found"
 
 Any `not found` entries indicate missing system libraries that will cause Puppeteer to fail silently.
 
----
-
-## Known Production Limitations
-
-### 1688 IP Geo-Detection
-1688.com (Alibaba) detects AWS datacenter IPs (Lambda's egress) and may serve a restricted page that does not execute the JavaScript responsible for setting the `_m_h5_tk` signing token cookie. This causes image upload to fail in production even though the function works locally.
-
-**Symptoms:**
-- Locally: all cookies including `_m_h5_tk` are present
-- Lambda: only server-set cookies appear (`ctoken`, `ali-ss`, etc.) — `_m_h5_tk` is missing
-
-**Solutions (in order of preference):**
-1. Route Lambda outbound traffic through a **residential or undetected proxy** (Oxylabs, Brightdata, etc.)
-2. Deploy to **ECS/Fargate with a NAT Gateway and Elastic IP**, then request IP whitelisting
-3. Use a **Lambda extension or VPC NAT with a static IP** paired with a proxy provider
-
 ### Chromium on Lambda
 - `--disable-gpu`, `--no-sandbox`, `--no-zygote`, `--single-process` are required for stable Chrome in Lambda
 - `PUPPETEER_CACHE_DIR` must point to a path baked into the image at build time (`/var/task/puppeteer-cache`)
