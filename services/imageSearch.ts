@@ -116,9 +116,23 @@ const uploadImage = async (context: BrowserContext, imageUrl: string) => {
     await page.setUserAgent({
       userAgent: USER_AGENT,
     });
-    await page.goto(TARGET_URL, { timeout: 0 });
-    const cookies = await context.cookies();
-    const targetCookie = cookies.find((cookie) => cookie.name === COOKIE_KEY);
+    await page.goto(TARGET_URL, { waitUntil: 'networkidle2', timeout: 60000 });
+    // Try both scopes
+    const contextCookies = await context.cookies();
+    const pageCookies = await page.cookies();
+
+    console.log(
+      'context cookie names:',
+      contextCookies.map((c) => `${c.name}@${c.domain}`),
+    );
+    console.log(
+      'page cookie names:',
+      pageCookies.map((c) => `${c.name}@${c.domain}`),
+    );
+
+    const targetCookie =
+      pageCookies.find((c) => c.name === COOKIE_KEY) ??
+      contextCookies.find((c) => c.name === COOKIE_KEY);
     if (!targetCookie) {
       console.error(`Cookie with key "${COOKIE_KEY}" not found`);
       return null;

@@ -20,7 +20,8 @@ export const handler: Handler<RequestPayload> = async (
   const { imageUrl, useEnglish } = event;
   const data = await imageSearchService(imageUrl, useEnglish);
   if (!data) {
-    throw new Error('No data returned from image search service');
+    console.error('No data returned from image search service');
+    return [];
   }
   return data;
   // TODO: Save to database
