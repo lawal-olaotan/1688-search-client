@@ -2,41 +2,22 @@
   "name": "1688-image-search-api",
   "version": "2.5.0",
   "description": "A lambda function for searching images on 1688.com using Puppeteer",
-  "main": "app.ts",
   "author": "robotdorm",
   "license": "MIT",
   "private": true,
   "scripts": {
-    "build:dev": "bun build ./app.ts --outdir ./build --splitting --target node --hot",
-    "build": "bun build ./app.ts --outdir=./build --splitting --target node --watch",
-    "start": "node build/app.js",
-    "run:node": "ts-node app.ts",
-    "node:dev": "nodemon --watch \"./*\" --ext \"ts,json\" --ignore \"src/**/*.spec.ts\" --exec \"bun run run:node\"",
-    "format": "prettier --write \"**/*.{ts,json,md}\"",
-    "format:check": "prettier --check \"**/*.{ts,json,md}\""
+    "build": "tsc"
   },
   "dependencies": {
     "@aws-sdk/client-translate": "^3.1116.0",
-    "axios": "^1.12.2",
-    "body-parser": "2.2.1",
-    "cors": "^2.8.5",
-    "dotenv": "^16",
-    "express": "5.0.0",
-    "morgan": "^1.10.0",
     "puppeteer": "^24.40.0",
     "puppeteer-extra": "^3.3.6",
     "puppeteer-extra-plugin-stealth": "^2.11.2"
   },
   "devDependencies": {
-    "@types/cors": "^2.8.17",
-    "@types/express": "^4.17.21",
-    "@types/morgan": "^1.9.9",
-    "@types/node": "^20.11.30",
-    "bun-types": "latest",
-    "nodemon": "^3.0.1",
+    "@types/node": "^22.0.0",
     "prettier": "^3.5.3",
-    "ts-node": "^10.9.2",
-    "tsx": "4.7.2",
-    "typescript": "^5.4.5"
+    "@types/aws-lambda": "^8.10.0",
+    "typescript": "^5.6.0"
   }
 }

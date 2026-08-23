@@ -10,7 +10,7 @@ const translateClient = new TranslateClient({
   region: 'eu-west-2',
 });
 
-export const imageSearchService = async (imageUrl: string) => {
+export const imageSearchService = async (imageUrl: string, useEnglish = false) => {
   const browser = await launchBrowser();
   const context = await browser.createBrowserContext();
 
@@ -20,16 +20,21 @@ export const imageSearchService = async (imageUrl: string) => {
       console.error('Image upload failed, no image ID returned');
       return null;
     }
-    const untranslatedResults =  await getSupplierDataFromImageId(context, imageId);
-    return await Promise.all(untranslatedResults.map(async (result) => {
-      const translatedTitle = await translateText(result.productTitle);
-      const translatedSupplierName = await translateText(result.supplierName);
-      return {
-        ...result,
-        supplierName: translatedSupplierName || result.supplierName,
-        productTitle: translatedTitle || result.productTitle,
-      };
-    }));
+    const untranslatedResults = await getSupplierDataFromImageId(context, imageId);
+    if (!useEnglish) {
+      return untranslatedResults;
+    }
+    return await Promise.all(
+      untranslatedResults.map(async (result) => {
+        const translatedTitle = await translateText(result.productTitle);
+        const translatedSupplierName = await translateText(result.supplierName);
+        return {
+          ...result,
+          supplierName: translatedSupplierName || result.supplierName,
+          productTitle: translatedTitle || result.productTitle,
+        };
+      }),
+    );
   } catch (error) {
     console.error('Error performing image search:', error);
     throw new Error('Internal server error');
@@ -51,7 +56,7 @@ const getSupplierDataFromImageId = async (
     await page.goto(url);
 
     await page.waitForSelector('[data-renderkey]', { timeout: 10000 });
-    return await page.evaluate(() => {
+    return (await page.evaluate(() => {
       const extractProductPrice = (itemSelector: Element): number => {
         const pricingWrapper = itemSelector.querySelector('div[class^="priceItem--"]');
         const mainPrice =
@@ -68,10 +73,10 @@ const getSupplierDataFromImageId = async (
       };
       const items = document.querySelectorAll('[data-renderkey]');
       return Array.from(items).map((item) => {
-        const parts = item.getAttribute('data-renderkey').split('_');
-        const offerId = parts[parts.length - 1];
+        const parts = item.getAttribute('data-renderkey')?.split('_');
+        const offerId = parts?.[parts.length - 1];
         const productUrl = `https://detail.1688.com/offer/${offerId}.html`;
-        const productImage = item.querySelector('img').getAttribute('src') || '';
+        const productImage = item?.querySelector('img')?.getAttribute('src') || '';
         const titleRow = item.querySelector('div[class^="offerTitleRow--"]');
         const productTitle =
           titleRow?.querySelector('div[class^="titleText--"] > div')?.textContent || '';
@@ -93,7 +98,7 @@ const getSupplierDataFromImageId = async (
           platform: '1688',
         };
       });
-    });
+    })) as SupplierDetails[];
   } catch (error) {
     console.error('Error:', error);
     return [];
@@ -116,10 +121,15 @@ const uploadImage = async (context: BrowserContext, imageUrl: string) => {
       console.error(`Cookie with key "${COOKIE_KEY}" not found`);
       return null;
     }
-    const { url, data } = await build1688ImageUploadRequestData(
+    const imageData = await build1688ImageUploadRequestData(
       imageUrl,
       targetCookie.value.split('_')[0],
     );
+    if (!imageData) {
+      console.error('Failed to build image upload request data');
+      return null;
+    }
+    const { url, data } = imageData;
     const imageUploadResult: ImageUploadResponse = await page.evaluate(
       ({ url, data }) => {
         return fetch(url, {
@@ -163,7 +173,8 @@ const build1688ImageUploadRequestData = async (imageUrl: string, cookieValue: st
     const base64ImageData = await convertImageUrlToBase64(imageUrl);
 
     if (!base64ImageData) {
-      throw new Error('Failed to convert image URL to Base64');
+      console.error('Failed to convert image URL to Base64');
+      return null;
     }
 
     const params = {
