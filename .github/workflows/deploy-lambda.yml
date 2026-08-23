@@ -44,3 +44,11 @@ jobs:
           docker build --platform linux/amd64 -t "$IMAGE" .
           docker push "$IMAGE"
           echo "image=$IMAGE" >> "$GITHUB_OUTPUT"
+
+      - name: Update function code
+        run: |
+          aws lambda update-function-code \
+            --function-name "$FUNCTION_NAME" \
+            --image-uri "${{ steps.build.outputs.image }}"
+          aws lambda wait function-updated-v2 \
+            --function-name "$FUNCTION_NAME"
