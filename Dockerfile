@@ -6,7 +6,8 @@ RUN dnf install -y \
     nss pango xorg-x11-fonts-misc liberation-fonts \
     && dnf clean all
 
-ENV PUPPETEER_CACHE_DIR=/opt/puppeteer-cache
+ENV PUPPETEER_CACHE_DIR=/var/task/puppeteer-cache
+ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=false
 
 COPY package*.json ${LAMBDA_TASK_ROOT}/
 RUN npm ci --omit=dev
