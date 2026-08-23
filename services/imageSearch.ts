@@ -18,8 +18,6 @@ export const imageSearchService = async (imageUrl: string, useEnglish = false) =
     const imageId = await uploadImage(context, imageUrl);
     if (!imageId) {
       console.error('Image upload failed, no image ID returned');
-      await browser.close();
-      await context.close();
       return null;
     }
     const untranslatedResults = await getSupplierDataFromImageId(context, imageId);
@@ -112,19 +110,17 @@ const getSupplierDataFromImageId = async (
 const uploadImage = async (context: BrowserContext, imageUrl: string) => {
   const page = await context.newPage();
 
+  await page.authenticate({
+    username: process.env.PROXY_USERNAME!,
+    password: process.env.PROXY_PASSWORD!,
+  });
+
   try {
     await page.setUserAgent({
       userAgent: USER_AGENT,
     });
     await page.goto(TARGET_URL, { timeout: 0 });
-    // Try both scopes
     const contextCookies = await context.cookies();
-
-    console.log(
-      'context cookie names:',
-      contextCookies.map((c) => `${c.name}@${c.domain}`),
-    );
-
     const targetCookie =  contextCookies.find((c) => c.name === COOKIE_KEY);
     if (!targetCookie) {
       console.error(`Cookie with key "${COOKIE_KEY}" not found`);
