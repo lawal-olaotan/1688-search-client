@@ -26,7 +26,6 @@ export const MINIMAL_ARGS = [
   '--no-sandbox',
   '--no-zygote',
   '--password-store=basic',
-  '--single-process',
 ];
 export const TARGET_URL = 'https://www.1688.com/?callByHgJs=1&__removesafearea__=1';
 export const COOKIE_KEY = '_m_h5_tk';
