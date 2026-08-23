@@ -153,13 +153,15 @@ const uploadImage = async (context: BrowserContext, imageUrl: string) => {
     const isUploadSuccessful = imageUploadResult?.ret?.[0]?.startsWith('SUCCESS::');
 
     if (!isUploadSuccessful) {
-      throw new Error(`Image upload failed: ${JSON.stringify(imageUploadResult)}`);
+      console.error(`Image upload failed: ${JSON.stringify(imageUploadResult)}`);
+      return null;
     }
 
     const imageId = imageUploadResult?.data?.data?.imageId;
 
     if (!imageId) {
-      throw new Error(`Image ID not found in response: ${JSON.stringify(imageUploadResult)}`);
+      console.error(`Image ID not found in response: ${JSON.stringify(imageUploadResult)}`);
+      return null;
     }
 
     return imageId;
