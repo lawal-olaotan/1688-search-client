@@ -1,10 +1,14 @@
-import {translate} from '@vitalets/google-translate-api';
-import { launchBrowser } from '../clients/headlessBrowser';
-import { COOKIE_KEY, TARGET_URL, USER_AGENT } from '../../const/SupplierFinder/1688';
-import { ImageUploadResponse } from '../../types/1688';
+import { TranslateClient, TranslateTextCommand } from '@aws-sdk/client-translate';
+import { launchBrowser } from './headlessBrowser';
+import { COOKIE_KEY, TARGET_URL, USER_AGENT } from '../const/1688';
+import { ImageUploadResponse } from '../types/1688';
 import { BrowserContext } from 'puppeteer';
-import { convertImageUrlToBase64 } from '../../helpers/imageConversionHelper';
-import { SupplierDetails } from '../../types/supplierDetails';
+import { convertImageUrlToBase64 } from '../helpers/imageConversionHelper';
+import { SupplierDetails } from '../types/supplierDetails';
+
+const translateClient = new TranslateClient({
+  region: 'eu-west-2',
+});
 
 export const imageSearchService = async (imageUrl: string) => {
   const browser = await launchBrowser();
@@ -16,8 +20,16 @@ export const imageSearchService = async (imageUrl: string) => {
       console.error('Image upload failed, no image ID returned');
       return null;
     }
-   return await getSupplierDataFromImageId(context, imageId);
-
+    const untranslatedResults =  await getSupplierDataFromImageId(context, imageId);
+    return await Promise.all(untranslatedResults.map(async (result) => {
+      const translatedTitle = await translateText(result.productTitle);
+      const translatedSupplierName = await translateText(result.supplierName);
+      return {
+        ...result,
+        supplierName: translatedSupplierName || result.supplierName,
+        productTitle: translatedTitle || result.productTitle,
+      };
+    }));
   } catch (error) {
     console.error('Error performing image search:', error);
     throw new Error('Internal server error');
@@ -73,7 +85,6 @@ const getSupplierDataFromImageId = async (
           productImage,
           productPriceRange: {
             min: price,
-            max: price,
           },
           yearsActive,
           supplierName,
@@ -190,7 +201,16 @@ const build1688ImageUploadRequestData = async (imageUrl: string, cookieValue: st
   }
 };
 
-const translateText = async(text:string)=> {
-  const translatedText =  await translate(text, { from: 'zh-CN', to: 'en' });
-  return translatedText.text;
-}
+const translateText = async (text: string) => {
+  try {
+    const translateParams = {
+      Text: text,
+      SourceLanguageCode: 'zh',
+      TargetLanguageCode: 'en',
+    };
+    const data = await translateClient.send(new TranslateTextCommand(translateParams));
+    return data.TranslatedText;
+  } catch (error) {
+    console.error('Error translating text:', error);
+  }
+};

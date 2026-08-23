@@ -7,8 +7,8 @@ export interface SupplierDetails {
   productUrl: string;
   productImage: string;
   productPriceRange: {
-    min: number;
-    max: number;
+    min?: number;
+    max?: number;
   };
   yearsActive: string;
   supplierMoq: string;

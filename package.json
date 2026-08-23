@@ -1,7 +1,7 @@
 {
-  "name": "payment",
+  "name": "1688-image-search-api",
   "version": "2.5.0",
-  "description": "Payment API",
+  "description": "A lambda function for searching images on 1688.com using Puppeteer",
   "main": "app.ts",
   "author": "robotdorm",
   "license": "MIT",
@@ -16,14 +16,12 @@
     "format:check": "prettier --check \"**/*.{ts,json,md}\""
   },
   "dependencies": {
-    "@mailchimp/mailchimp_marketing": "^3.0.80",
-    "@vitalets/google-translate-api": "^9.2.1",
+    "@aws-sdk/client-translate": "^3.1116.0",
     "axios": "^1.12.2",
     "body-parser": "2.2.1",
     "cors": "^2.8.5",
     "dotenv": "^16",
     "express": "5.0.0",
-    "google-translate-api": "^2.3.0",
     "morgan": "^1.10.0",
     "puppeteer": "^24.40.0",
     "puppeteer-extra": "^3.3.6",

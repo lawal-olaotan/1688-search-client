@@ -1,5 +1,5 @@
 import { Response, Request } from 'express';
-import { imageSearchService } from '../services/1688/imageSearch';
+import { imageSearchService } from '../services/imageSearch';
 
 interface ImageSearchRequest {
   imageUrl: string;

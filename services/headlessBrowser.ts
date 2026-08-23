@@ -1,6 +1,6 @@
 import puppeteer from 'puppeteer-extra';
 import StealthPlugin from 'puppeteer-extra-plugin-stealth';
-import { MINIMAL_ARGS } from '../../const/SupplierFinder/1688';
+import { MINIMAL_ARGS } from '../const/1688';
 
 puppeteer.use(StealthPlugin());
 
