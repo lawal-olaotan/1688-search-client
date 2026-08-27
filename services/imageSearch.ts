@@ -77,6 +77,11 @@ const getSupplierDataFromImageId = async (
   const url = `https://air.1688.com/kapp/1688-search/pc-image-search/?tab=imageSearch&imageId=${imageId}&imageIdList=${imageId}&spm=1688global.home/2025.pic&sortType=total_sales_volume&memberTags=215680;5179713&quantityBegin=10`;
 
   try {
+
+    await page.setUserAgent({
+      userAgent: USER_AGENT,
+    });
+
     await page.goto(url);
 
     await page.waitForSelector('[data-renderkey]', { timeout: 10000 });
@@ -237,7 +242,7 @@ const buildCookieHeader = (cookies: Array<{ name: string; value: string }>) =>
   cookies.map((c) => `${c.name}=${c.value}`).join('; ');
 
 const buildProxyAgent = () => {
-  const server = process.env.PROXY_SERVER;
+  const server = process.env.PROXY_SERVER_HTTP;
   const username = process.env.PROXY_USERNAME;
   const password = process.env.PROXY_PASSWORD;
 
