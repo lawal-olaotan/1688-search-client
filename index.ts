@@ -1,5 +1,6 @@
 import type { Handler } from 'aws-lambda';
 import { imageSearchService } from './services/imageSearch';
+import { saveSuppliersList } from './services/databaseService';
 import { SupplierDetails } from './types/supplierDetails';
 
 interface RequestPayload {
@@ -23,6 +24,12 @@ export const handler: Handler<RequestPayload> = async (
     console.error('No data returned from image search service');
     return [];
   }
+
+  try {
+    await saveSuppliersList(data);
+  } catch (error) {
+    console.error('Failed to save suppliers to database:', error);
+  }
+
   return data;
-  // TODO: Save to database
 };
