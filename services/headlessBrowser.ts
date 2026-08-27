@@ -6,7 +6,18 @@ puppeteer.use(StealthPlugin());
 
 export const launchBrowser = async () => {
   try {
-    return await puppeteer.launch({ headless: true, args: MINIMAL_ARGS });
+    const executablePath =
+      process.env.PUPPETEER_EXECUTABLE_PATH ||
+      puppeteer.executablePath();
+
+    console.log('Launching browser with executable:', executablePath);
+
+    return await puppeteer.launch({
+      headless: true,
+      executablePath,
+      args: [...MINIMAL_ARGS,
+      `--proxy-server=${process.env.PROXY_SERVER}`],
+    });
   } catch (error) {
     console.error('Error launching browser:', error);
     throw new Error('Failed to launch browser');

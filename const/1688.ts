@@ -12,6 +12,8 @@ export const MINIMAL_ARGS = [
   '--disable-dev-shm-usage',
   '--disable-domain-reliability',
   '--disable-extensions',
+  '--disable-features=AudioServiceOutOfProcess',
+  '--disable-gpu',
   '--disable-renderer-backgrounding',
   '--disable-setuid-sandbox',
   '--disable-speech-api',
