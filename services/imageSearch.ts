@@ -1,10 +1,21 @@
+import axios from 'axios';
+import { HttpsProxyAgent } from 'https-proxy-agent';
 import { TranslateClient, TranslateTextCommand } from '@aws-sdk/client-translate';
 import { launchBrowser } from './headlessBrowser';
 import { COOKIE_KEY, TARGET_URL, USER_AGENT } from '../const/1688';
-import { ImageUploadResponse } from '../types/1688';
 import { BrowserContext } from 'puppeteer';
 import { convertImageUrlToBase64 } from '../helpers/imageConversionHelper';
 import { SupplierDetails } from '../types/supplierDetails';
+
+interface ImageUploadData {
+  url: string;
+  data: string;
+}
+
+interface UploadSessionData {
+  imageData: ImageUploadData;
+  cookies: Array<{ name: string; value: string }>;
+}
 
 const translateClient = new TranslateClient({
   region: 'eu-west-2',
@@ -15,7 +26,13 @@ export const imageSearchService = async (imageUrl: string, useEnglish = false) =
   const context = await browser.createBrowserContext();
 
   try {
-    const imageId = await uploadImage(context, imageUrl);
+    const uploadSession = await uploadImage(context, imageUrl);
+    if (!uploadSession) {
+      console.error('Image upload setup failed, no session data returned');
+      return null;
+    }
+
+    const imageId = await uploadImageTo1688(uploadSession.imageData, uploadSession.cookies);
     if (!imageId) {
       console.error('Image upload failed, no image ID returned');
       return null;
@@ -110,10 +127,12 @@ const getSupplierDataFromImageId = async (
 const uploadImage = async (context: BrowserContext, imageUrl: string) => {
   const page = await context.newPage();
 
-  await page.authenticate({
-    username: process.env.PROXY_USERNAME!,
-    password: process.env.PROXY_PASSWORD!,
-  });
+  if (process.env.PROXY_USERNAME && process.env.PROXY_PASSWORD) {
+    await page.authenticate({
+      username: process.env.PROXY_USERNAME,
+      password: process.env.PROXY_PASSWORD,
+    });
+  }
 
   try {
     await page.setUserAgent({
@@ -121,53 +140,27 @@ const uploadImage = async (context: BrowserContext, imageUrl: string) => {
     });
     await page.goto(TARGET_URL, { timeout: 0 });
     const contextCookies = await context.cookies();
-    const targetCookie =  contextCookies.find((c) => c.name === COOKIE_KEY);
+    const targetCookie = contextCookies.find((c) => c.name === COOKIE_KEY);
     if (!targetCookie) {
       console.error(`Cookie with key "${COOKIE_KEY}" not found`);
       return null;
     }
-    const imageData = await build1688ImageUploadRequestData(
-      imageUrl,
-      targetCookie.value.split('_')[0],
-    );
+
+    const signToken = targetCookie.value.split('_')[0];
+    if (!signToken) {
+      console.error(`Cookie with key "${COOKIE_KEY}" has invalid format`);
+      return null;
+    }
+
+    const imageData = await build1688ImageUploadRequestData(imageUrl, signToken);
+
     if (!imageData) {
       console.error('Failed to build image upload request data');
       return null;
     }
-    const { url, data } = imageData;
-    const imageUploadResult: ImageUploadResponse = await page.evaluate(
-      ({ url, data }) => {
-        return fetch(url, {
-          method: 'POST',
-          credentials: 'include',
-          headers: {
-            'content-type': 'application/x-www-form-urlencoded',
-            accept: '*/*',
-            origin: 'https://s.1688.com',
-            referer: 'https://s.1688.com/',
-            'x-requested-with': 'XMLHttpRequest',
-          },
-          body: `data=${encodeURIComponent(data)}`,
-        }).then((response) => response.json());
-      },
-      { url, data },
-    );
 
-    const isUploadSuccessful = imageUploadResult?.ret?.[0]?.startsWith('SUCCESS::');
-
-    if (!isUploadSuccessful) {
-      console.error(`Image upload failed: ${JSON.stringify(imageUploadResult)}`);
-      return null;
-    }
-
-    const imageId = imageUploadResult?.data?.data?.imageId;
-
-    if (!imageId) {
-      console.error(`Image ID not found in response: ${JSON.stringify(imageUploadResult)}`);
-      return null;
-    }
-
-    return imageId;
+    const cookies = contextCookies.map(({ name, value }) => ({ name, value }));
+    return { imageData, cookies } as UploadSessionData;
   } catch (error) {
     console.error('Error in browser client:', error);
   } finally {
@@ -231,4 +224,67 @@ const translateText = async (text: string) => {
   } catch (error) {
     console.error('Error translating text:', error);
   }
+};
+
+const buildCookieHeader = (cookies: Array<{ name: string; value: string }>) =>
+  cookies.map((c) => `${c.name}=${c.value}`).join('; ');
+
+const buildProxyAgent = () => {
+  const server = process.env.PROXY_SERVER;
+  const username = process.env.PROXY_USERNAME;
+  const password = process.env.PROXY_PASSWORD;
+
+  if (!server || !username || !password) {
+    return null;
+  }
+
+  const proxyUrl = new URL(server);
+  proxyUrl.username = username;
+  proxyUrl.password = password;
+
+  return new HttpsProxyAgent(proxyUrl.toString());
+};
+
+const uploadImageTo1688 = async (
+  imageData: ImageUploadData,
+  cookies: Array<{ name: string; value: string }>,
+) => {
+  const { url, data } = imageData;
+  const cookieHeader = buildCookieHeader(cookies);
+  const proxyAgent = buildProxyAgent();
+
+  const response = await axios.post(url, `data=${encodeURIComponent(data)}`, {
+    headers: {
+      'content-type': 'application/x-www-form-urlencoded',
+      accept: '*/*',
+      origin: 'https://s.1688.com',
+      referer: 'https://s.1688.com/',
+      'x-requested-with': 'XMLHttpRequest',
+      'user-agent': USER_AGENT,
+      cookie: cookieHeader,
+    },
+    httpsAgent: proxyAgent ?? undefined,
+    httpAgent: proxyAgent ?? undefined,
+    proxy: proxyAgent ? false : undefined,
+    timeout: 30000,
+    validateStatus: () => true,
+  });
+
+  const imageUploadResult = response.data;
+
+  const isUploadSuccessful = imageUploadResult?.ret?.[0]?.startsWith('SUCCESS::');
+
+  if (!isUploadSuccessful) {
+    console.error(`Image upload failed: ${JSON.stringify(imageUploadResult)}`);
+    return null;
+  }
+
+  const imageId = imageUploadResult?.data?.data?.imageId;
+
+  if (!imageId) {
+    console.error(`Image ID not found in response: ${JSON.stringify(imageUploadResult)}`);
+    return null;
+  }
+
+  return imageId;
 };
