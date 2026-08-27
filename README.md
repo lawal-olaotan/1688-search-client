@@ -171,4 +171,17 @@ See `.github/workflows/deploy-lambda.yml` for full details.
 ### Required IAM permissions on the Lambda execution role
 
 - `translate:TranslateText` (for English translation feature)
+- `secretsmanager:GetSecretValue` (for database connection secret lookup)
 - `logs:CreateLogGroup`, `logs:CreateLogStream`, `logs:PutLogEvents` (via `AWSLambdaBasicExecutionRole`)
+
+### Required environment variables on the Lambda function
+
+| Variable             | Description                                                        |
+|----------------------|--------------------------------------------------------------------|
+| `AWS_SECRET_NAME`    | Name of the AWS Secrets Manager secret containing `MONGO_URI`      |
+| `PROXY_USERNAME`     | Username for the 1688 proxy authentication                           |
+| `PROXY_PASSWORD`     | Password for the 1688 proxy authentication                           |
+
+### Database
+
+Supplier search results are automatically saved to a MongoDB collection named `SuppliersList` in the `robotdorm` database. The MongoDB connection string is retrieved from AWS Secrets Manager as the `MONGO_URI` key within the secret.
