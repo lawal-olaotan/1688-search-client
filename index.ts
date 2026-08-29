@@ -1,6 +1,5 @@
-import type { Handler } from 'aws-lambda';
+import type { StreamifyHandler } from 'aws-lambda';
 import { getSupplierDataFromImageId, uploadImage, uploadImageTo1688 } from './services/imageSearch';
-import { SupplierDetails } from './types/supplierDetails';
 import { launchBrowser } from './services/headlessBrowser';
 import { USER_AGENT } from './const/1688';
 
@@ -11,56 +10,82 @@ interface RequestPayload {
   exchangeRate?: number;
 }
 
-export const handler: Handler<RequestPayload> = async (event): Promise<SupplierDetails[]> => {
-  if (!event || !event.imageUrl) {
-    console.error('Invalid event payload: imageUrl is required');
-    return [];
-  }
-
-  const { imageUrl } = event;
-  const browser = await launchBrowser();
-  const browserContext = await browser.createBrowserContext();
-  const page = await browserContext.newPage();
-
-  try {
-    if (process.env.PROXY_USERNAME && process.env.PROXY_PASSWORD) {
-      await page.authenticate({
-        username: process.env.PROXY_USERNAME,
-        password: process.env.PROXY_PASSWORD,
-      });
-    }
-
-    await page.setUserAgent({
-      userAgent: USER_AGENT,
+export const handler: StreamifyHandler<RequestPayload, void> = awslambda.streamifyResponse(
+  async (event, responseStream) => {
+    const stream = awslambda.HttpResponseStream.from(responseStream, {
+      statusCode: 200,
+      headers: {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache',
+      },
     });
+    const jobId = crypto.randomUUID();
+    const send = (eventName: string, data: unknown) => {
+      stream.write(`event: ${eventName}\ndata: ${JSON.stringify(data)}\n\n`);
+    };
+    const errorMessage = () => {
+      send('error', { jobId, message: 'An error occurred during processing.' });
+      stream.end();
+    };
 
-    const uploadSession = await uploadImage(browserContext, page, imageUrl);
-
-    if (!uploadSession) {
-      console.error('Image upload setup failed, no session data returned');
-      return [];
+    if (!event || !event.imageUrl) {
+      return errorMessage();
     }
 
-    const imageId = await uploadImageTo1688(uploadSession.imageData, uploadSession.cookies);
+    const { imageUrl } = event;
+    const browser = await launchBrowser();
+    const browserContext = await browser.createBrowserContext();
+    const page = await browserContext.newPage();
 
-    if (!imageId) {
-      console.error('Image upload failed, no image ID returned');
-      return [];
+    try {
+      if (process.env.PROXY_USERNAME && process.env.PROXY_PASSWORD) {
+        await page.authenticate({
+          username: process.env.PROXY_USERNAME,
+          password: process.env.PROXY_PASSWORD,
+        });
+      }
+
+      send('startingSession', { jobId, message: 'Starting browser session' });
+
+      await page.setUserAgent({
+        userAgent: USER_AGENT,
+      });
+
+      const uploadSession = await uploadImage(browserContext, page, imageUrl);
+
+      if (!uploadSession) {
+        console.error('Image upload setup failed, no session data returned');
+        return errorMessage();
+      } else {
+        send('uploadSession', { jobId});
+      }
+
+      const imageId = await uploadImageTo1688(uploadSession.imageData, uploadSession.cookies);
+
+      if (!imageId) {
+        console.error('Image upload failed, no image ID returned');
+        return errorMessage();
+      } else {
+        send('imageUploaded', { jobId });
+      }
+      const data = await getSupplierDataFromImageId(page, imageId);
+
+      if (!data) {
+        console.error('No data returned from image search service');
+        return errorMessage();
+      }
+
+      // TODO: save data to database here
+
+      send('completed', { jobId });
+    } catch (error) {
+      console.error('Error performing image search:', error);
+      return errorMessage();
+    } finally {
+      stream.end();
+      await page.close();
+      await browserContext.close();
+      await browser.close();
     }
-    const data = await getSupplierDataFromImageId(page, imageId);
-
-    if (!data) {
-      console.error('No data returned from image search service');
-      return [];
-    }
-
-    return data;
-  } catch (error) {
-    console.error('Error performing image search:', error);
-    throw new Error('Internal server error');
-  } finally {
-    await page.close();
-    await browserContext.close();
-    await browser.close();
-  }
-};
+  },
+);
