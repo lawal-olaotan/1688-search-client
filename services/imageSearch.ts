@@ -1,7 +1,7 @@
 import axios from 'axios';
 import { HttpsProxyAgent } from 'https-proxy-agent';
 import { COOKIE_KEY, TARGET_URL, USER_AGENT } from '../const/1688';
-import { BrowserContext } from 'puppeteer';
+import { BrowserContext, Page } from 'puppeteer';
 import { convertImageUrlToBase64 } from '../helpers/imageConversionHelper';
 import { SupplierDetails } from '../types/supplierDetails';
 import * as cheerio from 'cheerio';
@@ -32,30 +32,17 @@ const extractYearsActive = ($item: cheerio.Cheerio<any>): string | null => {
 };
 
 export const getSupplierDataFromImageId = async (
-  browser: BrowserContext,
+  pageContext: Page,
   imageId: string,
 ): Promise<SupplierDetails[]> => {
-  const page = await browser.newPage();
-
-  if (process.env.PROXY_USERNAME && process.env.PROXY_PASSWORD) {
-    await page.authenticate({
-      username: process.env.PROXY_USERNAME,
-      password: process.env.PROXY_PASSWORD,
-    });
-  }
-
   const url = `https://air.1688.com/kapp/1688-search/pc-image-search/?tab=imageSearch&imageId=${imageId}&imageIdList=${imageId}&spm=1688global.home/2025.pic&sortType=total_sales_volume&memberTags=215680;5179713&quantityBegin=10`;
 
   try {
-    await page.setUserAgent({
-      userAgent: USER_AGENT,
-    });
+    await pageContext.goto(url);
 
-    await page.goto(url);
+    await pageContext.waitForSelector('[data-renderkey]', { timeout: 10000 });
 
-    await page.waitForSelector('[data-renderkey]', { timeout: 10000 });
-
-    const html = await page.content();
+    const html = await pageContext.content();
     const $ = cheerio.load(html);
 
     return $('[data-renderkey]')
@@ -89,28 +76,13 @@ export const getSupplierDataFromImageId = async (
         };
       }) as SupplierDetails[];
   } catch (error) {
-    console.error('Error:', error);
-    return [];
-  } finally {
-    await page.close();
+    throw new Error(`Failed to get supplier data from image ID: ${error}`);
   }
 };
 
-export const uploadImage = async (context: BrowserContext, imageUrl: string) => {
-  const page = await context.newPage();
-
-  if (process.env.PROXY_USERNAME && process.env.PROXY_PASSWORD) {
-    await page.authenticate({
-      username: process.env.PROXY_USERNAME,
-      password: process.env.PROXY_PASSWORD,
-    });
-  }
-
+export const uploadImage = async (context: BrowserContext, contextPage: Page, imageUrl: string) => {
   try {
-    await page.setUserAgent({
-      userAgent: USER_AGENT,
-    });
-    await page.goto(TARGET_URL, { timeout: 0 });
+    await contextPage.goto(TARGET_URL, { timeout: 0 });
     const contextCookies = await context.cookies();
     const targetCookie = contextCookies.find((c) => c.name === COOKIE_KEY);
     if (!targetCookie) {
@@ -135,8 +107,6 @@ export const uploadImage = async (context: BrowserContext, imageUrl: string) => 
     return { imageData, cookies } as UploadSessionData;
   } catch (error) {
     console.error('Error in browser client:', error);
-  } finally {
-    await page.close();
   }
 };
 
