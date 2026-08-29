@@ -1,39 +1,60 @@
 import {
-  SecretsManagerClient,
-  GetSecretValueCommand,
+  SecretsManager,
 } from '@aws-sdk/client-secrets-manager';
 
-const client = new SecretsManagerClient({ region: 'eu-west-2' });
+const secretsManager = new SecretsManager({
+  region: process.env.AWS_REGION || process.env.AWS_DEFAULT_REGION,
+});
 
-let cachedMongoUri: string | null = null;
-
-export const getMongoUri = async (): Promise<string> => {
-  if (cachedMongoUri) {
-    return cachedMongoUri;
-  }
-
-  const secretName = process.env.AWS_SECRET_NAME;
-  if (!secretName) {
-    throw new Error('AWS_SECRET_NAME environment variable is not set');
-  }
-
-  const response = await client.send(
-    new GetSecretValueCommand({ SecretId: secretName }),
+const parseDbUri = (connectionString:string) => {
+  const values = Object.fromEntries(
+    connectionString
+      .split(';')
+      .filter(Boolean)
+      .map((part) => {
+        const [key, ...rest] = part.split('=');
+        return [
+          key.trim().toLowerCase(),
+          rest.join('=').trim(),
+        ];
+      }),
   );
 
-  if (!response.SecretString) {
-    throw new Error(
-      'Secret string not found in AWS Secrets Manager response',
-    );
+  return {
+    host: values.host,
+    database: values.database,
+    user: values.username,
+    password: values.password,
+
+    ssl:
+      values['ssl mode']?.toLowerCase() === 'require'
+        ? {
+          rejectUnauthorized:
+            values['trust server certificate']?.toLowerCase() !== 'true',
+        }
+        : undefined,
+
+    max: 10,
+    idleTimeoutMillis: 30_000,
+    connectionTimeoutMillis: 10_000,
+  };
+};
+
+export const getDbConfig = async () => {
+  const secretName = process.env.DB_URI_SECRET_NAME || 'DB_URI';
+
+  const secret = await secretsManager.getSecretValue({ SecretId: secretName });
+  const secretString = secret.SecretString || '';
+
+  if (!secretString) {
+    throw new Error(`Secret ${secretName} is empty.`);
   }
 
-  const secret = JSON.parse(response.SecretString);
-  const mongoUri = secret.MONGO_URI;
+  const dbConfig = parseDbUri(secretString);
 
-  if (!mongoUri) {
-    throw new Error('MONGO_URI not found in AWS Secrets Manager secret');
+  if (!dbConfig.host || !dbConfig.database || !dbConfig.user || !dbConfig.password) {
+    throw new Error(`Secret ${secretName} is missing required DB settings.`);
   }
 
-  cachedMongoUri = mongoUri;
-  return mongoUri;
+  return dbConfig;
 };

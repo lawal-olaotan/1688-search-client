@@ -1,35 +1,90 @@
-import type { Handler } from 'aws-lambda';
-import { imageSearchService } from './services/imageSearch';
+import type { StreamifyHandler } from 'aws-lambda';
+import { getSupplierDataFromImageId, uploadImage, uploadImageTo1688 } from './services/imageSearch';
+import { launchBrowser } from './services/headlessBrowser';
+import { USER_AGENT } from './const/1688';
 import { saveSuppliersList } from './services/databaseService';
-import { SupplierDetails } from './types/supplierDetails';
 
 interface RequestPayload {
   imageUrl: string;
-  useEnglish?: boolean;
-  sku?: string;
+  sku: string;
   exchangeRate?: number;
 }
 
-// TODO event stream will be returned in the future
-export const handler: Handler<RequestPayload> = async (
-  event
-): Promise<SupplierDetails[]> => {
-  if (!event || !event.imageUrl) {
-    console.error('Invalid event payload: imageUrl is required');
-    return [];
-  }
-  const { imageUrl, useEnglish } = event;
-  const data = await imageSearchService(imageUrl, useEnglish);
-  if (!data) {
-    console.error('No data returned from image search service');
-    return [];
-  }
+export const handler: StreamifyHandler<RequestPayload, void> = awslambda.streamifyResponse(
+  async (event, responseStream) => {
+    const stream = awslambda.HttpResponseStream.from(responseStream, {
+      statusCode: 200,
+      headers: {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache',
+      },
+    });
+    const jobId = crypto.randomUUID();
+    const send = (eventName: string, data: unknown) => {
+      stream.write(`event: ${eventName}\ndata: ${JSON.stringify(data)}\n\n`);
+    };
+    const errorMessage = () => {
+      send('error', { jobId, message: 'An error occurred during processing.' });
+      stream.end();
+    };
 
-  try {
-    await saveSuppliersList(data);
-  } catch (error) {
-    console.error('Failed to save suppliers to database:', error);
-  }
+    if (!event || !event.imageUrl || !event.sku) {
+      return errorMessage();
+    }
 
-  return data;
-};
+    const { imageUrl } = event;
+    const browser = await launchBrowser();
+    const browserContext = await browser.createBrowserContext();
+    const page = await browserContext.newPage();
+
+    try {
+      if (process.env.PROXY_USERNAME && process.env.PROXY_PASSWORD) {
+        await page.authenticate({
+          username: process.env.PROXY_USERNAME,
+          password: process.env.PROXY_PASSWORD,
+        });
+      }
+
+      send('startingSession', { jobId, message: 'Starting browser session' });
+
+      await page.setUserAgent({
+        userAgent: USER_AGENT,
+      });
+
+      const uploadSession = await uploadImage(browserContext, page, imageUrl);
+
+      if (!uploadSession) {
+        console.error('Image upload setup failed, no session data returned');
+        return errorMessage();
+      } else {
+        send('uploadSession', { jobId});
+      }
+
+      const imageId = await uploadImageTo1688(uploadSession.imageData, uploadSession.cookies);
+
+      if (!imageId) {
+        console.error('Image upload failed, no image ID returned');
+        return errorMessage();
+      } else {
+        send('imageUploaded', { jobId });
+      }
+      const data = await getSupplierDataFromImageId(page, imageId);
+
+      if (!data) {
+        console.error('No data returned from image search service');
+        return errorMessage();
+      }
+
+      await saveSuppliersList(data);
+      send('completed', { jobId });
+    } catch (error) {
+      console.error('Error performing image search:', error);
+      return errorMessage();
+    } finally {
+      stream.end();
+      await page.close();
+      await browserContext.close();
+      await browser.close();
+    }
+  },
+);

@@ -11,15 +11,19 @@
   "dependencies": {
     "@aws-sdk/client-secrets-manager": "^3.750.0",
     "@aws-sdk/client-translate": "^3.1116.0",
-    "mongodb": "^4.3.1",
+    "axios": "^1.20.0",
+    "cheerio": "^1.2.0",
+    "https-proxy-agent": "^7.0.6",
+    "pg": "^8.23.0",
     "puppeteer": "^24.40.0",
     "puppeteer-extra": "^3.3.6",
     "puppeteer-extra-plugin-stealth": "^2.11.2"
   },
   "devDependencies": {
-    "@types/node": "^22.0.0",
-    "prettier": "^3.5.3",
     "@types/aws-lambda": "^8.10.0",
+    "@types/node": "^22.0.0",
+    "@types/pg": "^8.23.1",
+    "prettier": "^3.5.3",
     "typescript": "^5.6.0"
   }
 }
