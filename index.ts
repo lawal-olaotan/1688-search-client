@@ -6,8 +6,7 @@ import { saveSuppliersList } from './services/databaseService';
 
 interface RequestPayload {
   imageUrl: string;
-  useEnglish?: boolean;
-  sku?: string;
+  sku: string;
   exchangeRate?: number;
 }
 
@@ -29,7 +28,7 @@ export const handler: StreamifyHandler<RequestPayload, void> = awslambda.streami
       stream.end();
     };
 
-    if (!event || !event.imageUrl) {
+    if (!event || !event.imageUrl || !event.sku) {
       return errorMessage();
     }
 
