@@ -10,7 +10,7 @@ export const launchBrowser = async () => {
     return await puppeteer.launch({
       headless: true,
       executablePath,
-      args: [...MINIMAL_ARGS, `--proxy-server=${process.env.PROXY_SERVER}`],
+      args: [...MINIMAL_ARGS, `--proxy-server=${process.env.PROXY_SERVER_HTTP}`],
     });
   } catch (error) {
     console.error('Error launching browser:', error);
