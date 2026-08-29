@@ -1,11 +1,10 @@
 import axios from 'axios';
 import { HttpsProxyAgent } from 'https-proxy-agent';
-import { TranslateClient, TranslateTextCommand } from '@aws-sdk/client-translate';
-import { launchBrowser } from './headlessBrowser';
 import { COOKIE_KEY, TARGET_URL, USER_AGENT } from '../const/1688';
 import { BrowserContext } from 'puppeteer';
 import { convertImageUrlToBase64 } from '../helpers/imageConversionHelper';
 import { SupplierDetails } from '../types/supplierDetails';
+import * as cheerio from 'cheerio';
 
 interface ImageUploadData {
   url: string;
@@ -17,51 +16,22 @@ interface UploadSessionData {
   cookies: Array<{ name: string; value: string }>;
 }
 
-const translateClient = new TranslateClient({
-  region: 'eu-west-2',
-});
+const extractProductPrice = ($item: cheerio.Cheerio<any>): number => {
+  const pricingWrapper = $item.find('div[class^="priceItem--"]').first();
+  const mainPrice = pricingWrapper.find('div[class^="textMain--"]').first().text().trim();
+  const decimalPrice = pricingWrapper.find('div:nth-child(3)').first().text().trim();
 
-export const imageSearchService = async (imageUrl: string, useEnglish = false) => {
-  const browser = await launchBrowser();
-  const context = await browser.createBrowserContext();
-
-  try {
-    const uploadSession = await uploadImage(context, imageUrl);
-    if (!uploadSession) {
-      console.error('Image upload setup failed, no session data returned');
-      return null;
-    }
-
-    const imageId = await uploadImageTo1688(uploadSession.imageData, uploadSession.cookies);
-    if (!imageId) {
-      console.error('Image upload failed, no image ID returned');
-      return null;
-    }
-    const untranslatedResults = await getSupplierDataFromImageId(context, imageId);
-    if (!useEnglish) {
-      return untranslatedResults;
-    }
-    return await Promise.all(
-      untranslatedResults.map(async (result) => {
-        const translatedTitle = await translateText(result.productTitle);
-        const translatedSupplierName = await translateText(result.supplierName);
-        return {
-          ...result,
-          supplierName: translatedSupplierName || result.supplierName,
-          productTitle: translatedTitle || result.productTitle,
-        };
-      }),
-    );
-  } catch (error) {
-    console.error('Error performing image search:', error);
-    throw new Error('Internal server error');
-  } finally {
-    await context.close();
-    await browser.close();
-  }
+  const numeric = `${mainPrice}${decimalPrice || ''}`.replace(/[^\d.]/g, '');
+  return numeric ? Number(numeric) : 0;
 };
 
-const getSupplierDataFromImageId = async (
+const extractYearsActive = ($item: cheerio.Cheerio<any>): string | null => {
+  const yearsActiveText = $item.find('div[class^="tpYear--"]').first().text().trim();
+  if (!yearsActiveText) return null;
+  return yearsActiveText.replace(/\D/g, '');
+};
+
+export const getSupplierDataFromImageId = async (
   browser: BrowserContext,
   imageId: string,
 ): Promise<SupplierDetails[]> => {
@@ -77,7 +47,6 @@ const getSupplierDataFromImageId = async (
   const url = `https://air.1688.com/kapp/1688-search/pc-image-search/?tab=imageSearch&imageId=${imageId}&imageIdList=${imageId}&spm=1688global.home/2025.pic&sortType=total_sales_volume&memberTags=215680;5179713&quantityBegin=10`;
 
   try {
-
     await page.setUserAgent({
       userAgent: USER_AGENT,
     });
@@ -85,49 +54,40 @@ const getSupplierDataFromImageId = async (
     await page.goto(url);
 
     await page.waitForSelector('[data-renderkey]', { timeout: 10000 });
-    return (await page.evaluate(() => {
-      const extractProductPrice = (itemSelector: Element): number => {
-        const pricingWrapper = itemSelector.querySelector('div[class^="priceItem--"]');
-        const mainPrice =
-          pricingWrapper?.querySelector('div[class^="textMain--"]')?.textContent ?? '';
-        const decimalPrice = pricingWrapper?.querySelector('div:nth-child(3)')?.textContent ?? '';
 
-        return Number(`${mainPrice}${decimalPrice || ''}`);
-      };
-      const extractYearsActive = (itemSelector: Element) => {
-        const yearsActiveText = itemSelector.querySelector('div[class^="tpYear--"]')?.textContent;
-        if (!yearsActiveText) return null;
+    const html = await page.content();
+    const $ = cheerio.load(html);
 
-        return yearsActiveText.replace(/\D/g, '');
-      };
-      const items = document.querySelectorAll('[data-renderkey]');
-      return Array.from(items).map((item) => {
-        const parts = item.getAttribute('data-renderkey')?.split('_');
-        const offerId = parts?.[parts.length - 1];
+    return $('[data-renderkey]')
+      .toArray()
+      .map((el) => {
+        const item = $(el);
+
+        const renderKey = item.attr('data-renderkey') || '';
+        const parts = renderKey.split('_');
+        const offerId = parts[parts.length - 1] || '';
         const productUrl = `https://detail.1688.com/offer/${offerId}.html`;
-        const productImage = item?.querySelector('img')?.getAttribute('src') || '';
-        const titleRow = item.querySelector('div[class^="offerTitleRow--"]');
-        const productTitle =
-          titleRow?.querySelector('div[class^="titleText--"] > div')?.textContent || '';
+
+        const productImage = item.find('img').first().attr('src') || '';
+        const titleRow = item.find('div[class^="offerTitleRow--"]').first();
+        const productTitle = titleRow.find('div[class^="titleText--"] > div').first().text().trim();
         const price = extractProductPrice(item);
-        const supplierName = item.querySelector('div[class^="shopName--"]')?.textContent ?? '';
+        const supplierName = item.find('div[class^="shopName--"]').first().text().trim();
         const yearsActive = extractYearsActive(item);
+
         return {
           universalId: crypto.randomUUID(),
           productTitle,
           productUrl,
           productImage,
-          productPriceRange: {
-            min: price,
-          },
+          productPriceRange: { min: price },
           yearsActive,
           supplierName,
           supplierMoq: 'More than 10 pieces',
           supplierUrl: productUrl,
           platform: '1688',
         };
-      });
-    })) as SupplierDetails[];
+      }) as SupplierDetails[];
   } catch (error) {
     console.error('Error:', error);
     return [];
@@ -136,7 +96,7 @@ const getSupplierDataFromImageId = async (
   }
 };
 
-const uploadImage = async (context: BrowserContext, imageUrl: string) => {
+export const uploadImage = async (context: BrowserContext, imageUrl: string) => {
   const page = await context.newPage();
 
   if (process.env.PROXY_USERNAME && process.env.PROXY_PASSWORD) {
@@ -224,20 +184,6 @@ const build1688ImageUploadRequestData = async (imageUrl: string, cookieValue: st
   }
 };
 
-const translateText = async (text: string) => {
-  try {
-    const translateParams = {
-      Text: text,
-      SourceLanguageCode: 'zh',
-      TargetLanguageCode: 'en',
-    };
-    const data = await translateClient.send(new TranslateTextCommand(translateParams));
-    return data.TranslatedText;
-  } catch (error) {
-    console.error('Error translating text:', error);
-  }
-};
-
 const buildCookieHeader = (cookies: Array<{ name: string; value: string }>) =>
   cookies.map((c) => `${c.name}=${c.value}`).join('; ');
 
@@ -257,7 +203,7 @@ const buildProxyAgent = () => {
   return new HttpsProxyAgent(proxyUrl.toString());
 };
 
-const uploadImageTo1688 = async (
+export const uploadImageTo1688 = async (
   imageData: ImageUploadData,
   cookies: Array<{ name: string; value: string }>,
 ) => {
