@@ -2,11 +2,11 @@ import type { StreamifyHandler } from 'aws-lambda';
 import { getSupplierDataFromImageId, uploadImage, uploadImageTo1688 } from './services/imageSearch';
 import { launchBrowser } from './services/headlessBrowser';
 import { USER_AGENT } from './const/1688';
+import { saveSuppliersList } from './services/databaseService';
 
 interface RequestPayload {
   imageUrl: string;
-  useEnglish?: boolean;
-  sku?: string;
+  sku: string;
   exchangeRate?: number;
 }
 
@@ -28,7 +28,7 @@ export const handler: StreamifyHandler<RequestPayload, void> = awslambda.streami
       stream.end();
     };
 
-    if (!event || !event.imageUrl) {
+    if (!event || !event.imageUrl || !event.sku) {
       return errorMessage();
     }
 
@@ -75,8 +75,7 @@ export const handler: StreamifyHandler<RequestPayload, void> = awslambda.streami
         return errorMessage();
       }
 
-      // TODO: save data to database here
-
+      await saveSuppliersList(data);
       send('completed', { jobId });
     } catch (error) {
       console.error('Error performing image search:', error);
