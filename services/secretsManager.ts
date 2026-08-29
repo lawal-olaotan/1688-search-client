@@ -1,22 +1,11 @@
-import {
-  SecretsManager,
-} from '@aws-sdk/client-secrets-manager';
-
-const secretsManager = new SecretsManager({
-  region: process.env.AWS_REGION || process.env.AWS_DEFAULT_REGION,
-});
-
-const parseDbUri = (connectionString:string) => {
+const parseDbUri = (connectionString: string) => {
   const values = Object.fromEntries(
     connectionString
       .split(';')
       .filter(Boolean)
       .map((part) => {
         const [key, ...rest] = part.split('=');
-        return [
-          key.trim().toLowerCase(),
-          rest.join('=').trim(),
-        ];
+        return [key.trim().toLowerCase(), rest.join('=').trim()];
       }),
   );
 
@@ -29,9 +18,8 @@ const parseDbUri = (connectionString:string) => {
     ssl:
       values['ssl mode']?.toLowerCase() === 'require'
         ? {
-          rejectUnauthorized:
-            values['trust server certificate']?.toLowerCase() !== 'true',
-        }
+            rejectUnauthorized: values['trust server certificate']?.toLowerCase() !== 'true',
+          }
         : undefined,
 
     max: 10,
@@ -41,19 +29,16 @@ const parseDbUri = (connectionString:string) => {
 };
 
 export const getDbConfig = async () => {
-  const secretName = process.env.DB_URI_SECRET_NAME || 'DB_URI';
-
-  const secret = await secretsManager.getSecretValue({ SecretId: secretName });
-  const secretString = secret.SecretString || '';
+  const secretString = process.env.DB_URI;
 
   if (!secretString) {
-    throw new Error(`Secret ${secretName} is empty.`);
+    throw new Error(`Secret ${secretString} is empty.`);
   }
 
   const dbConfig = parseDbUri(secretString);
 
   if (!dbConfig.host || !dbConfig.database || !dbConfig.user || !dbConfig.password) {
-    throw new Error(`Secret ${secretName} is missing required DB settings.`);
+    throw new Error(`Secret ${secretString} is missing required DB settings.`);
   }
 
   return dbConfig;
