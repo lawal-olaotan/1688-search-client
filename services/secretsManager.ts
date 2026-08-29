@@ -3,7 +3,7 @@ import {
 } from '@aws-sdk/client-secrets-manager';
 
 const secretsManager = new SecretsManager({
-  region: process.env.AWS_REGION || process.env.AWS_DEFAULT_REGION,
+  region: 'eu-west-2',
 });
 
 const parseDbUri = (connectionString:string) => {
