@@ -34,6 +34,7 @@ const extractYearsActive = ($item: cheerio.Cheerio<any>): string | null => {
 export const getSupplierDataFromImageId = async (
   pageContext: Page,
   imageId: string,
+  sku: string
 ): Promise<SupplierDetails[]> => {
   const url = `https://air.1688.com/kapp/1688-search/pc-image-search/?tab=imageSearch&imageId=${imageId}&imageIdList=${imageId}&spm=1688global.home/2025.pic&sortType=total_sales_volume&memberTags=215680;5179713&quantityBegin=10`;
 
@@ -73,6 +74,7 @@ export const getSupplierDataFromImageId = async (
           supplierMoq: 'More than 10 pieces',
           supplierUrl: productUrl,
           platform: '1688',
+          sku,
         };
       }) as SupplierDetails[];
   } catch (error) {

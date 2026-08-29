@@ -57,7 +57,7 @@ export const handler: StreamifyHandler<RequestPayload, void> = awslambda.streami
         console.error('Image upload setup failed, no session data returned');
         return errorMessage();
       } else {
-        send('uploadSession', { jobId});
+        send('uploadSession', { jobId });
       }
 
       const imageId = await uploadImageTo1688(uploadSession.imageData, uploadSession.cookies);
@@ -68,7 +68,7 @@ export const handler: StreamifyHandler<RequestPayload, void> = awslambda.streami
       } else {
         send('imageUploaded', { jobId });
       }
-      const data = await getSupplierDataFromImageId(page, imageId);
+      const data = await getSupplierDataFromImageId(page, imageId, event.sku);
 
       if (!data) {
         console.error('No data returned from image search service');
