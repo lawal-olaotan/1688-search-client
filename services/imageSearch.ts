@@ -37,12 +37,12 @@ export const getSupplierDataFromImageId = async (
 ): Promise<SupplierDetails[]> => {
   const page = await browser.newPage();
 
-  if (process.env.PROXY_USERNAME && process.env.PROXY_PASSWORD) {
-    await page.authenticate({
-      username: process.env.PROXY_USERNAME,
-      password: process.env.PROXY_PASSWORD,
-    });
-  }
+  // if (process.env.PROXY_USERNAME && process.env.PROXY_PASSWORD) {
+  //   await page.authenticate({
+  //     username: process.env.PROXY_USERNAME,
+  //     password: process.env.PROXY_PASSWORD,
+  //   });
+  // }
 
   const url = `https://air.1688.com/kapp/1688-search/pc-image-search/?tab=imageSearch&imageId=${imageId}&imageIdList=${imageId}&spm=1688global.home/2025.pic&sortType=total_sales_volume&memberTags=215680;5179713&quantityBegin=10`;
 
