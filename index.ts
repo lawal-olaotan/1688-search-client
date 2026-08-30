@@ -2,7 +2,6 @@ import type { StreamifyHandler } from 'aws-lambda';
 import { getSupplierDataFromImageId, uploadImage, uploadImageTo1688 } from './services/imageSearch';
 import { launchBrowser } from './services/headlessBrowser';
 import { USER_AGENT } from './const/1688';
-import { saveSuppliersList } from './services/databaseService';
 
 interface RequestPayload {
   imageUrl: string;
@@ -75,8 +74,7 @@ export const handler: StreamifyHandler<RequestPayload, void> = awslambda.streami
         return errorMessage();
       }
 
-      await saveSuppliersList(data);
-      send('completed', { jobId });
+      return send('completed', { jobId, data });
     } catch (error) {
       console.error('Error performing image search:', error);
       return errorMessage();
