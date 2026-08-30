@@ -80,14 +80,14 @@ jobs:
           fi
           sleep 20
 
-      - name: Set provisioned concurrency
+      - name: Delete existing provisioned concurrency
         env:
           ALIAS_NAME: live
         run: |
-          aws lambda put-provisioned-concurrency-config \
+          aws lambda delete-provisioned-concurrency-config \
             --function-name "$FUNCTION_NAME" \
-            --qualifier "$ALIAS_NAME" \
-            --provisioned-concurrent-executions 1
+            --qualifier "$ALIAS_NAME" 2>/dev/null || true
+          sleep 5
       - name: Wait for provisioned concurrency readiness
         env:
           ALIAS_NAME: live
