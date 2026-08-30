@@ -55,7 +55,12 @@ export const getSupplierDataFromImageId = async (
         const supplierName = item.find('div[class^="shopName--"]').first().text().trim();
         const yearsActive = extractYearsActive(item);
 
-        if (!supplierName || !yearsActive || supplierDataMap.has(supplierName)) {
+        if (
+          !supplierName ||
+          !yearsActive ||
+          supplierDataMap.has(supplierName) ||
+          Number(yearsActive) < 5
+        ) {
           return;
         }
 
