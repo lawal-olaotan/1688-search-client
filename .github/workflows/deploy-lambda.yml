@@ -71,7 +71,7 @@ jobs:
               --function-name "$FUNCTION_NAME" \
               --name "$ALIAS_NAME" \
               --function-version "${{ steps.publish.outputs.version }}" \
-              --routing-config '{}'
+              --routing-config "AdditionalVersionWeights={}"
           else
             aws lambda create-alias \
               --function-name "$FUNCTION_NAME" \

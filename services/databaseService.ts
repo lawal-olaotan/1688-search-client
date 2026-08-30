@@ -3,7 +3,6 @@ import type { Pool as PoolClass } from 'pg';
 import { SupplierDetails } from '../types/supplierDetails';
 import { getDbConfig } from './secretsManager';
 import { from as copyFrom } from 'pg-copy-streams';
-import { Readable } from 'stream';
 
 const { Pool } = pg;
 
@@ -60,10 +59,11 @@ export const saveSuppliersList = async (suppliers: SupplierDetails[]): Promise<v
       .join('\n');
 
     const stream = client.query(copyFrom(copySql));
-    Readable.from([rows]).pipe(stream);
+
     await new Promise<void>((resolve, reject) => {
       stream.on('finish', resolve);
       stream.on('error', reject);
+
       stream.write(rows);
       stream.end();
     });
