@@ -78,7 +78,7 @@ jobs:
               --name "$ALIAS_NAME" \
               --function-version "${{ steps.publish.outputs.version }}"
           fi
-          sleep 10
+          sleep 20
 
       - name: Set provisioned concurrency
         env:
