@@ -48,7 +48,60 @@ jobs:
       - name: Update function code
         run: |
           aws lambda update-function-code \
-            --function-name "$FUNCTION_NAME" \
-            --image-uri "${{ steps.build.outputs.image }}"
+          --function-name "$FUNCTION_NAME" \
+          --image-uri "${{ steps.build.outputs.image }}"
           aws lambda wait function-updated-v2 \
-            --function-name "$FUNCTION_NAME"
+          --function-name "$FUNCTION_NAME"
+
+      - name: Publish version
+        id: publish
+        run: |
+          VERSION=$(aws lambda publish-version \
+            --function-name "$FUNCTION_NAME" \
+            --query 'Version' \
+            --output text)
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Upsert alias
+        env:
+          ALIAS_NAME: live
+        run: |
+          if aws lambda get-alias --function-name "$FUNCTION_NAME" --name "$ALIAS_NAME" >/dev/null 2>&1; then
+            aws lambda update-alias \
+              --function-name "$FUNCTION_NAME" \
+              --name "$ALIAS_NAME" \
+              --function-version "${{ steps.publish.outputs.version }}"
+          else
+            aws lambda create-alias \
+              --function-name "$FUNCTION_NAME" \
+              --name "$ALIAS_NAME" \
+              --function-version "${{ steps.publish.outputs.version }}"
+          fi
+
+      - name: Set provisioned concurrency
+        env:
+          ALIAS_NAME: live
+        run: |
+          aws lambda put-provisioned-concurrency-config \
+            --function-name "$FUNCTION_NAME" \
+            --qualifier "$ALIAS_NAME" \
+            --provisioned-concurrent-executions 1
+
+      - name: Wait for provisioned concurrency readiness
+        env:
+          ALIAS_NAME: live
+        run: |
+          for i in {1..30}; do
+            STATUS=$(aws lambda get-provisioned-concurrency-config \
+              --function-name "$FUNCTION_NAME" \
+              --qualifier "$ALIAS_NAME" \
+              --query 'Status' \
+              --output text 2>/dev/null || echo "IN_PROGRESS")
+            echo "Provisioned concurrency status: $STATUS"
+            if [ "$STATUS" = "READY" ]; then
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "Provisioned concurrency did not become READY in time"
+          exit 1
