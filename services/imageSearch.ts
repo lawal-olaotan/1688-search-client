@@ -34,7 +34,7 @@ const extractYearsActive = ($item: cheerio.Cheerio<any>): string | null => {
 export const getSupplierDataFromImageId = async (
   pageContext: Page,
   imageId: string,
-  sku: string
+  sku: string,
 ): Promise<SupplierDetails[]> => {
   const url = `https://air.1688.com/kapp/1688-search/pc-image-search/?tab=imageSearch&imageId=${imageId}&imageIdList=${imageId}&spm=1688global.home/2025.pic&sortType=total_sales_volume&memberTags=215680;5179713&quantityBegin=10`;
 
@@ -46,10 +46,18 @@ export const getSupplierDataFromImageId = async (
     const html = await pageContext.content();
     const $ = cheerio.load(html);
 
-    return $('[data-renderkey]')
+    const supplierDataMap = new Map<string, SupplierDetails>();
+
+    $('[data-renderkey]')
       .toArray()
-      .map((el) => {
+      .forEach((el) => {
         const item = $(el);
+        const supplierName = item.find('div[class^="shopName--"]').first().text().trim();
+        const yearsActive = extractYearsActive(item);
+
+        if (!supplierName || !yearsActive || supplierDataMap.has(supplierName)) {
+          return;
+        }
 
         const renderKey = item.attr('data-renderkey') || '';
         const parts = renderKey.split('_');
@@ -60,10 +68,8 @@ export const getSupplierDataFromImageId = async (
         const titleRow = item.find('div[class^="offerTitleRow--"]').first();
         const productTitle = titleRow.find('div[class^="titleText--"] > div').first().text().trim();
         const price = extractProductPrice(item);
-        const supplierName = item.find('div[class^="shopName--"]').first().text().trim();
-        const yearsActive = extractYearsActive(item);
 
-        return {
+        const supplierData = {
           universalId: crypto.randomUUID(),
           productTitle,
           productUrl,
@@ -76,7 +82,9 @@ export const getSupplierDataFromImageId = async (
           platform: '1688',
           sku,
         };
-      }) as SupplierDetails[];
+        supplierDataMap.set(supplierName, supplierData);
+      });
+    return Array.from(supplierDataMap.values());
   } catch (error) {
     throw new Error(`Failed to get supplier data from image ID: ${error}`);
   }
