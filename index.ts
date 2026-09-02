@@ -11,32 +11,45 @@ import { USER_AGENT } from './const/1688';
 interface RequestPayload {
   imageUrl: string;
   sku: string;
-  exchangeRate?: number;
 }
 
-export const handler: StreamifyHandler<RequestPayload, void> = awslambda.streamifyResponse(
+export const handler: StreamifyHandler<any, void> = awslambda.streamifyResponse(
   async (event, responseStream) => {
     const stream = awslambda.HttpResponseStream.from(responseStream, {
       statusCode: 200,
       headers: {
         'Content-Type': 'text/event-stream',
         'Cache-Control': 'no-cache',
+        'Access-Control-Allow-Origin': 'http://localhost:3000',
       },
     });
     const jobId = crypto.randomUUID();
     const send = (eventName: string, data: unknown) => {
       stream.write(`event: ${eventName}\ndata: ${JSON.stringify(data)}\n\n`);
     };
-    const errorMessage = () => {
-      send('error', { jobId, message: 'An error occurred during processing.' });
+    const errorMessage = (error?: string) => {
+      send('error', { jobId, message: error ?? 'An error occurred during processing.' });
       stream.end();
     };
 
-    if (!event || !event.imageUrl || !event.sku) {
+    let payload: RequestPayload | null = null;
+
+    try {
+      payload = typeof event?.body === 'string' ? JSON.parse(event.body) : event;
+    } catch (error) {
+      return errorMessage('Invalid request body');
+    }
+
+    if (!payload || !payload.imageUrl || !payload.sku) {
+      return errorMessage('imageUrl and sku are required');
+    }
+
+    const { imageUrl, sku } = payload;
+
+    if (!payload || !payload.imageUrl || !payload.sku) {
       return errorMessage();
     }
 
-    const { imageUrl } = event;
     const browser = await launchBrowser();
     const browserContext = await browser.createBrowserContext();
     const page = await browserContext.newPage();
@@ -78,7 +91,7 @@ export const handler: StreamifyHandler<RequestPayload, void> = awslambda.streami
         send('finding-suppliers-details', { jobId });
       }
 
-      const data = await extractSupplierDataFromHtml(supplierPageFragment, event.sku);
+      const data = await extractSupplierDataFromHtml(supplierPageFragment, sku);
 
       if (!data) {
         console.error('No data returned from image search service');
