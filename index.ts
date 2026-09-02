@@ -1,5 +1,10 @@
 import type { StreamifyHandler } from 'aws-lambda';
-import { getSupplierDataFromImageId, uploadImage, uploadImageTo1688 } from './services/imageSearch';
+import {
+  extractSupplierDataFromHtml,
+  getSupplierDataFromImageId,
+  uploadImage,
+  uploadImageTo1688,
+} from './services/imageSearch';
 import { launchBrowser } from './services/headlessBrowser';
 import { USER_AGENT } from './const/1688';
 
@@ -44,8 +49,6 @@ export const handler: StreamifyHandler<RequestPayload, void> = awslambda.streami
         });
       }
 
-      send('startingSession', { jobId, message: 'Starting browser session' });
-
       await page.setUserAgent({
         userAgent: USER_AGENT,
       });
@@ -56,7 +59,7 @@ export const handler: StreamifyHandler<RequestPayload, void> = awslambda.streami
         console.error('Image upload setup failed, no session data returned');
         return errorMessage();
       } else {
-        send('uploadSession', { jobId });
+        send('finding-product-match', { jobId });
       }
 
       const imageId = await uploadImageTo1688(uploadSession.imageData, uploadSession.cookies);
@@ -65,16 +68,24 @@ export const handler: StreamifyHandler<RequestPayload, void> = awslambda.streami
         console.error('Image upload failed, no image ID returned');
         return errorMessage();
       } else {
-        send('imageUploaded', { jobId });
+        send('found-matching-products', { jobId });
       }
-      const data = await getSupplierDataFromImageId(page, imageId, event.sku);
+      const supplierPageFragment = await getSupplierDataFromImageId(page, imageId);
+      if (!supplierPageFragment) {
+        console.error('Failed to retrieve supplier data from image ID');
+        return errorMessage();
+      } else {
+        send('finding-suppliers-details', { jobId });
+      }
+
+      const data = await extractSupplierDataFromHtml(supplierPageFragment, event.sku);
 
       if (!data) {
         console.error('No data returned from image search service');
         return errorMessage();
       }
 
-      return send('completed', { jobId, data });
+      return send('done', { jobId, data });
     } catch (error) {
       console.error('Error performing image search:', error);
       return errorMessage();

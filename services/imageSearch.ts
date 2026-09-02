@@ -34,8 +34,7 @@ const extractYearsActive = ($item: cheerio.Cheerio<any>): string | null => {
 export const getSupplierDataFromImageId = async (
   pageContext: Page,
   imageId: string,
-  sku: string,
-): Promise<SupplierDetails[]> => {
+): Promise<string> => {
   const url = `https://air.1688.com/kapp/1688-search/pc-image-search/?tab=imageSearch&imageId=${imageId}&imageIdList=${imageId}&spm=1688global.home/2025.pic&sortType=total_sales_volume&memberTags=215680;5179713&quantityBegin=10`;
 
   try {
@@ -43,7 +42,17 @@ export const getSupplierDataFromImageId = async (
 
     await pageContext.waitForSelector('[data-renderkey]', { timeout: 10000 });
 
-    const html = await pageContext.content();
+    return  await pageContext.content();
+  } catch (error) {
+    throw new Error(`Failed to get supplier data from image ID: ${error}`);
+  }
+};
+
+export const extractSupplierDataFromHtml = async (
+  html: string,
+  sku: string,
+): Promise<SupplierDetails[]> => {
+  try {
     const $ = cheerio.load(html);
 
     const supplierDataMap = new Map<string, SupplierDetails>();
@@ -91,7 +100,8 @@ export const getSupplierDataFromImageId = async (
       });
     return Array.from(supplierDataMap.values());
   } catch (error) {
-    throw new Error(`Failed to get supplier data from image ID: ${error}`);
+    console.error('Error extracting supplier data from HTML:', error);
+    return [];
   }
 };
 
