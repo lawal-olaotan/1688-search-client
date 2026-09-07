@@ -20,7 +20,7 @@ export const handler: StreamifyHandler<any, void> = awslambda.streamifyResponse(
       headers: {
         'Content-Type': 'text/event-stream',
         'Cache-Control': 'no-cache',
-        'Access-Control-Allow-Origin': 'http://localhost:3000',
+        'Access-Control-Allow-Origin': '*',
       },
     });
     const jobId = crypto.randomUUID();
