@@ -18,9 +18,9 @@ export const handler: StreamifyHandler<any, void> = awslambda.streamifyResponse(
     const stream = awslambda.HttpResponseStream.from(responseStream, {
       statusCode: 200,
       headers: {
-        'Content-Type': 'text/event-stream',
-        'Cache-Control': 'no-cache',
-        'Access-Control-Allow-Origin': '*',
+        'Content-Type': 'text/event-stream; charset=utf-8',
+        'Cache-Control': 'no-cache, no-transform',
+        Connection: 'keep-alive',
       },
     });
     const jobId = crypto.randomUUID();
@@ -29,7 +29,6 @@ export const handler: StreamifyHandler<any, void> = awslambda.streamifyResponse(
     };
     const errorMessage = (error?: string) => {
       send('error', { jobId, message: error ?? 'An error occurred during processing.' });
-      stream.end();
     };
 
     let payload: RequestPayload | null = null;
@@ -45,10 +44,6 @@ export const handler: StreamifyHandler<any, void> = awslambda.streamifyResponse(
     }
 
     const { imageUrl, sku } = payload;
-
-    if (!payload || !payload.imageUrl || !payload.sku) {
-      return errorMessage();
-    }
 
     const browser = await launchBrowser();
     const browserContext = await browser.createBrowserContext();
