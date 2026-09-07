@@ -21,6 +21,7 @@ export const handler: StreamifyHandler<any, void> = awslambda.streamifyResponse(
         'Content-Type': 'text/event-stream; charset=utf-8',
         'Cache-Control': 'no-cache, no-transform',
         Connection: 'keep-alive',
+        'X-Accel-Buffering': 'no',
       },
     });
     const jobId = crypto.randomUUID();
