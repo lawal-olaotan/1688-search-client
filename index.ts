@@ -45,7 +45,7 @@ export const handler: StreamifyHandler<any, void> = awslambda.streamifyResponse(
       return errorMessage('imageUrl and sku are required');
     }
 
-    const { imageUrl, sku } = payload;
+    const { imageUrl, sku, exchangeRate } = payload;
 
     const browser = await launchBrowser();
     const browserContext = await browser.createBrowserContext();
@@ -88,7 +88,7 @@ export const handler: StreamifyHandler<any, void> = awslambda.streamifyResponse(
         send('finding-suppliers-details', { jobId });
       }
 
-      const data = await extractSupplierDataFromHtml(supplierPageFragment, sku);
+      const data = await extractSupplierDataFromHtml(supplierPageFragment, sku, exchangeRate);
 
       if (!data) {
         console.error('No data returned from image search service');
