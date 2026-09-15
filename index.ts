@@ -11,6 +11,7 @@ import { USER_AGENT } from './const/1688';
 interface RequestPayload {
   imageUrl: string;
   sku: string;
+  exchangeRate: number;
 }
 
 export const handler: StreamifyHandler<any, void> = awslambda.streamifyResponse(

@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { TranslateClient, TranslateTextCommand } from '@aws-sdk/client-translate';
 import { HttpsProxyAgent } from 'https-proxy-agent';
 import { COOKIE_KEY, TARGET_URL, USER_AGENT } from '../const/1688';
 import { BrowserContext, Page } from 'puppeteer';
@@ -15,6 +16,10 @@ interface UploadSessionData {
   imageData: ImageUploadData;
   cookies: Array<{ name: string; value: string }>;
 }
+
+const translateClient = new TranslateClient({
+  region: 'eu-west-2',
+});
 
 const extractProductPrice = ($item: cheerio.Cheerio<any>): number => {
   const pricingWrapper = $item.find('div[class^="priceItem--"]').first();
@@ -42,7 +47,7 @@ export const getSupplierDataFromImageId = async (
 
     await pageContext.waitForSelector('[data-renderkey]', { timeout: 10000 });
 
-    return  await pageContext.content();
+    return await pageContext.content();
   } catch (error) {
     throw new Error(`Failed to get supplier data from image ID: ${error}`);
   }
@@ -51,6 +56,7 @@ export const getSupplierDataFromImageId = async (
 export const extractSupplierDataFromHtml = async (
   html: string,
   sku: string,
+  exchangeRate: number,
 ): Promise<SupplierDetails[]> => {
   try {
     const $ = cheerio.load(html);
@@ -81,14 +87,14 @@ export const extractSupplierDataFromHtml = async (
         const productImage = item.find('img').first().attr('src') || '';
         const titleRow = item.find('div[class^="offerTitleRow--"]').first();
         const productTitle = titleRow.find('div[class^="titleText--"] > div').first().text().trim();
-        const price = extractProductPrice(item);
+        const price = extractProductPrice(item) * exchangeRate;
 
         const supplierData = {
           universalId: crypto.randomUUID(),
           productTitle,
           productUrl,
           productImage,
-          productPriceRange: { min: price },
+          productPriceRange: { min: Number(price.toFixed(2)) },
           yearsActive,
           supplierName,
           supplierMoq: 'More than 10 pieces',
@@ -98,7 +104,17 @@ export const extractSupplierDataFromHtml = async (
         };
         supplierDataMap.set(supplierName, supplierData);
       });
-    return Array.from(supplierDataMap.values());
+    return await Promise.all(
+      Array.from(supplierDataMap.values()).map(async (result) => {
+        const translatedTitle = await translateText(result.productTitle);
+        const translatedSupplierName = await translateText(result.supplierName);
+        return {
+          ...result,
+          supplierName: translatedSupplierName || result.supplierName,
+          productTitle: translatedTitle || result.productTitle,
+        };
+      }),
+    );
   } catch (error) {
     console.error('Error extracting supplier data from HTML:', error);
     return [];
@@ -240,4 +256,18 @@ export const uploadImageTo1688 = async (
   }
 
   return imageId;
+};
+
+const translateText = async (text: string) => {
+  try {
+    const translateParams = {
+      Text: text,
+      SourceLanguageCode: 'zh',
+      TargetLanguageCode: 'en',
+    };
+    const data = await translateClient.send(new TranslateTextCommand(translateParams));
+    return data.TranslatedText;
+  } catch (error) {
+    console.error('Error translating text:', error);
+  }
 };
