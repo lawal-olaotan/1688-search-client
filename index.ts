@@ -81,6 +81,7 @@ export const handler: StreamifyHandler<any, void> = awslambda.streamifyResponse(
         send('found-matching-products', { jobId });
       }
       const supplierPageFragment = await getSupplierDataFromImageId(page, imageId);
+
       if (!supplierPageFragment) {
         console.error('Failed to retrieve supplier data from image ID');
         return errorMessage();
