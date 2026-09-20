@@ -41,6 +41,7 @@ export const getSupplierDataFromImageId = async (
   imageId: string,
 ): Promise<string> => {
   const url = `https://air.1688.com/kapp/1688-search/pc-image-search/?tab=imageSearch&imageId=${imageId}&spm=a260k.home2025%2F2026.imageUpload.0`;
+  console.log(url);
 
   try {
     await pageContext.goto(url);
