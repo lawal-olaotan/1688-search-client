@@ -40,10 +40,10 @@ export const getSupplierDataFromImageId = async (
   pageContext: Page,
   imageId: string,
 ): Promise<string> => {
-  const url = `https://air.1688.com/kapp/1688-search/pc-image-search/?tab=imageSearch&imageId=${imageId}&imageIdList=${imageId}&spm=1688global.home/2025.pic&sortType=total_sales_volume&memberTags=215680;5179713&quantityBegin=10`;
+  const url = `https://air.1688.com/kapp/1688-search/pc-image-search/?tab=imageSearch&imageId=${imageId}&spm=a260k.home2025%2F2026.imageUpload.0`;
 
   try {
-    await pageContext.goto(url, { timeout: 10000 });
+    await pageContext.goto(url);
 
     await pageContext.waitForSelector('[data-renderkey]', { timeout: 10000 });
 
