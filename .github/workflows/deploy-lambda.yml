@@ -88,10 +88,33 @@ jobs:
           fi
           sleep 20
 
-      - name: Point Function URL to live alias
+      - name: Ensure Function URL exists for live alias
         env:
           ALIAS_NAME: live
         run: |
-          aws lambda update-function-url-config \
+          CORS_CONFIG='{
+            "AllowOrigins":[
+              "http://localhost:3000",
+              "https://dev.robotdorm.com",
+              "https://robotdorm.com"
+            ],
+            "AllowHeaders":["content-type","accept"],
+            "AllowMethods":["POST"],
+            "MaxAge":600,
+            "AllowCredentials":false
+          }'
+
+          if aws lambda get-function-url-config \
             --function-name "$FUNCTION_NAME" \
-            --qualifier "$ALIAS_NAME"
+            --qualifier "$ALIAS_NAME" >/dev/null 2>&1; then
+            aws lambda update-function-url-config \
+              --function-name "$FUNCTION_NAME" \
+              --qualifier "$ALIAS_NAME" \
+              --cors "$CORS_CONFIG"
+          else
+            aws lambda create-function-url-config \
+              --function-name "$FUNCTION_NAME" \
+              --qualifier "$ALIAS_NAME" \
+              --auth-type NONE \
+              --cors "$CORS_CONFIG"
+          fi
