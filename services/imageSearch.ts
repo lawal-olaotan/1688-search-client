@@ -43,7 +43,10 @@ export const getSupplierDataFromImageId = async (
   const url = `https://air.1688.com/kapp/1688-search/pc-image-search/?tab=imageSearch&imageId=${imageId}&spm=a260k.home2025%2F2026.imageUpload.0`;
 
   try {
-    await pageContext.goto(url);
+    await pageContext.goto(url, {
+      waitUntil: 'domcontentloaded',
+      timeout: 60000,
+    });
 
     await pageContext.waitForSelector('[data-renderkey]', { timeout: 10000 });
 
