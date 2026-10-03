@@ -104,7 +104,8 @@ export const extractSupplierDataFromHtml = async (
         };
         supplierDataMap.set(supplierName, supplierData);
       });
-    return await Promise.all(
+
+    const extractedData = await Promise.all(
       Array.from(supplierDataMap.values()).map(async (result) => {
         const translatedTitle = await translateText(result.productTitle);
         const translatedSupplierName = await translateText(result.supplierName);
@@ -115,6 +116,8 @@ export const extractSupplierDataFromHtml = async (
         };
       }),
     );
+
+    return extractedData.sort((a, b) => Number(b.yearsActive) - Number(a.yearsActive));
   } catch (error) {
     console.error('Error extracting supplier data from HTML:', error);
     return [];
