@@ -47,7 +47,7 @@ export const handler: StreamifyHandler<any, void> = awslambda.streamifyResponse(
 
     const { imageUrl, sku, exchangeRate } = payload;
 
-    send('starting-supplier-match', { jobId });
+    send('starting-supplier-search', { jobId });
 
     const browser = await launchBrowser();
     const browserContext = await browser.createBrowserContext();
