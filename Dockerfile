@@ -1,5 +1,4 @@
 FROM public.ecr.aws/lambda/nodejs:22
-LABEL com.amazonaws.lambda.feature.snapstart="Allow"
 
 # Install Chrome dependencies + Chrome stable directly (no Puppeteer bundled Chromium)
 RUN dnf install -y \
