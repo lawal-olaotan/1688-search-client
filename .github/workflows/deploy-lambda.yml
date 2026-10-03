@@ -121,9 +121,9 @@ jobs:
             echo "Provisioned concurrency status: $STATUS"
 
             if [ "$STATUS" = "READY" ]; then
-              exit 0
+              READY=true
+              break
             fi
-
             if [ "$STATUS" = "FAILED" ]; then
               aws lambda get-provisioned-concurrency-config \
                 --function-name "$FUNCTION_NAME" \
@@ -136,21 +136,6 @@ jobs:
 
           echo "Provisioned concurrency did not become READY in time"
           exit 1
-
-      - name: Delete old Lambda versions
-        env:
-          KEEP_VERSION: ${{ steps.publish.outputs.version }}
-        run: |
-          aws lambda list-versions-by-function \
-            --function-name "$FUNCTION_NAME" \
-            --query "Versions[?Version!=\`$LATEST\` && Version!=\`$KEEP_VERSION\`].Version" \
-            --output text | tr '\t' '\n' | while read -r VERSION; do
-              [ -z "$VERSION" ] && continue
-              echo "Deleting version $VERSION"
-              aws lambda delete-function \
-                --function-name "$FUNCTION_NAME" \
-                --qualifier "$VERSION"
-            done
 
       - name: Ensure Function URL exists for live alias
         run: |
@@ -166,18 +151,20 @@ jobs:
             "AllowCredentials":false
           }'
 
-          aws lambda update-function-url-config \
+          if aws lambda update-function-url-config \
             --function-name "$FUNCTION_NAME" \
             --qualifier "$ALIAS_NAME" \
-            --cors "$CORS_CONFIG" >/dev/null 2>&1 && exit 0
-
-          aws lambda create-function-url-config \
+            --cors "$CORS_CONFIG" >/dev/null 2>&1; then
+            echo "Updated Function URL config"
+          elif aws lambda create-function-url-config \
             --function-name "$FUNCTION_NAME" \
             --qualifier "$ALIAS_NAME" \
             --auth-type NONE \
-            --cors "$CORS_CONFIG" >/dev/null 2>&1 && exit 0
-
-          aws lambda update-function-url-config \
-            --function-name "$FUNCTION_NAME" \
-            --qualifier "$ALIAS_NAME" \
-            --cors "$CORS_CONFIG"
+            --cors "$CORS_CONFIG" >/dev/null 2>&1; then
+            echo "Created Function URL config"
+          else
+            aws lambda update-function-url-config \
+              --function-name "$FUNCTION_NAME" \
+              --qualifier "$ALIAS_NAME" \
+              --cors "$CORS_CONFIG"
+          fi
