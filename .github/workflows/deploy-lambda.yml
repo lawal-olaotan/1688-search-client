@@ -88,6 +88,21 @@ jobs:
           fi
           sleep 20
 
+      - name: Delete old Lambda versions
+        env:
+          ALIAS_NAME: live
+          KEEP_VERSION: ${{ steps.publish.outputs.version }}
+        run: |
+          aws lambda list-versions-by-function \
+            --function-name "$FUNCTION_NAME" \
+            --query "Versions[?Version!=\`$LATEST\` && Version!=\`$KEEP_VERSION\`].Version" \
+            --output text | tr '\t' '\n' | while read -r VERSION; do
+              [ -z "$VERSION" ] && continue
+              aws lambda delete-function \
+                --function-name "$FUNCTION_NAME" \
+                --qualifier "$VERSION"
+            done
+
       - name: Ensure Function URL exists for live alias
         env:
           ALIAS_NAME: live
