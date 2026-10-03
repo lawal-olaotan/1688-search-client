@@ -1,4 +1,5 @@
 name: deploy-lambda.yml
+
 on:
   push:
     branches: ['main']
@@ -6,6 +7,8 @@ on:
 env:
   ECR_REPOSITORY: '1688-image-search'
   FUNCTION_NAME: '1688-image-search-function'
+  ALIAS_NAME: 'live'
+  PROVISIONED_CONCURRENCY: '1'
 
 permissions:
   id-token: write
@@ -48,16 +51,8 @@ jobs:
       - name: Update function code
         run: |
           aws lambda update-function-code \
-          --function-name "$FUNCTION_NAME" \
-          --image-uri "${{ steps.build.outputs.image }}"
-          aws lambda wait function-updated-v2 \
-          --function-name "$FUNCTION_NAME"
-
-      - name: Enable SnapStart
-        run: |
-          aws lambda update-function-configuration \
             --function-name "$FUNCTION_NAME" \
-            --snap-start ApplyOn=PublishedVersions
+            --image-uri "${{ steps.build.outputs.image }}"
           aws lambda wait function-updated-v2 \
             --function-name "$FUNCTION_NAME"
 
@@ -71,8 +66,6 @@ jobs:
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
       - name: Upsert alias
-        env:
-          ALIAS_NAME: live
         run: |
           if aws lambda get-alias --function-name "$FUNCTION_NAME" --name "$ALIAS_NAME" >/dev/null 2>&1; then
             aws lambda update-alias \
@@ -86,11 +79,66 @@ jobs:
               --name "$ALIAS_NAME" \
               --function-version "${{ steps.publish.outputs.version }}"
           fi
-          sleep 20
+
+      - name: Reset provisioned concurrency on live alias
+        run: |
+          aws lambda delete-provisioned-concurrency-config \
+            --function-name "$FUNCTION_NAME" \
+            --qualifier "$ALIAS_NAME" >/dev/null 2>&1 || true
+
+          for i in {1..30}; do
+            STATUS=$(aws lambda get-provisioned-concurrency-config \
+              --function-name "$FUNCTION_NAME" \
+              --qualifier "$ALIAS_NAME" \
+              --query 'Status' \
+              --output text 2>/dev/null || echo "DELETED")
+
+            echo "Existing provisioned concurrency status: $STATUS"
+
+            if [ "$STATUS" = "DELETED" ]; then
+              break
+            fi
+
+            sleep 10
+          done
+
+      - name: Configure provisioned concurrency
+        run: |
+          aws lambda put-provisioned-concurrency-config \
+            --function-name "$FUNCTION_NAME" \
+            --qualifier "$ALIAS_NAME" \
+            --provisioned-concurrent-executions "$PROVISIONED_CONCURRENCY"
+
+      - name: Wait for provisioned concurrency readiness
+        run: |
+          for i in {1..36}; do
+            STATUS=$(aws lambda get-provisioned-concurrency-config \
+              --function-name "$FUNCTION_NAME" \
+              --qualifier "$ALIAS_NAME" \
+              --query 'Status' \
+              --output text)
+
+            echo "Provisioned concurrency status: $STATUS"
+
+            if [ "$STATUS" = "READY" ]; then
+              exit 0
+            fi
+
+            if [ "$STATUS" = "FAILED" ]; then
+              aws lambda get-provisioned-concurrency-config \
+                --function-name "$FUNCTION_NAME" \
+                --qualifier "$ALIAS_NAME"
+              exit 1
+            fi
+
+            sleep 10
+          done
+
+          echo "Provisioned concurrency did not become READY in time"
+          exit 1
 
       - name: Delete old Lambda versions
         env:
-          ALIAS_NAME: live
           KEEP_VERSION: ${{ steps.publish.outputs.version }}
         run: |
           aws lambda list-versions-by-function \
@@ -98,14 +146,13 @@ jobs:
             --query "Versions[?Version!=\`$LATEST\` && Version!=\`$KEEP_VERSION\`].Version" \
             --output text | tr '\t' '\n' | while read -r VERSION; do
               [ -z "$VERSION" ] && continue
+              echo "Deleting version $VERSION"
               aws lambda delete-function \
                 --function-name "$FUNCTION_NAME" \
                 --qualifier "$VERSION"
             done
 
       - name: Ensure Function URL exists for live alias
-        env:
-          ALIAS_NAME: live
         run: |
           CORS_CONFIG='{
             "AllowOrigins":[
@@ -119,17 +166,18 @@ jobs:
             "AllowCredentials":false
           }'
 
-          if aws lambda get-function-url-config \
+          aws lambda update-function-url-config \
             --function-name "$FUNCTION_NAME" \
-            --qualifier "$ALIAS_NAME" >/dev/null 2>&1; then
-            aws lambda update-function-url-config \
-              --function-name "$FUNCTION_NAME" \
-              --qualifier "$ALIAS_NAME" \
-              --cors "$CORS_CONFIG"
-          else
-            aws lambda create-function-url-config \
-              --function-name "$FUNCTION_NAME" \
-              --qualifier "$ALIAS_NAME" \
-              --auth-type NONE \
-              --cors "$CORS_CONFIG"
-          fi
+            --qualifier "$ALIAS_NAME" \
+            --cors "$CORS_CONFIG" >/dev/null 2>&1 && exit 0
+
+          aws lambda create-function-url-config \
+            --function-name "$FUNCTION_NAME" \
+            --qualifier "$ALIAS_NAME" \
+            --auth-type NONE \
+            --cors "$CORS_CONFIG" >/dev/null 2>&1 && exit 0
+
+          aws lambda update-function-url-config \
+            --function-name "$FUNCTION_NAME" \
+            --qualifier "$ALIAS_NAME" \
+            --cors "$CORS_CONFIG"
